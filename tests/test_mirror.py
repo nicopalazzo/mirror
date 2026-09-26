@@ -65,7 +65,7 @@ class Classifier(unittest.TestCase):
 class Readers(Base):
     def test_claude(self):
         turns, actions, tokens = read_claude(self.claude)
-        self.assertEqual(len(turns), 7)  # tool_result row skipped
+        self.assertEqual(len(turns), 6)  # tool_result row skipped; the /model command is dropped at read time
         self.assertEqual(sum(1 for a in actions if a.cat == "write"), 3)
         self.assertEqual(tokens["claude-test-1"]["messages"], 5)
 
@@ -80,11 +80,7 @@ class Indexes(Base):
     def test_quick_approval_and_kinds(self):
         t1, a1, _ = read_claude(self.claude)
         t2, a2, _ = read_codex(self.codex)
-        turns = t1 + t2
-        for t in turns:
-            t.kind = classify(t.text)
-        turns = [t for t in turns if t.kind != "meta"]
-        days = by_day(turns, a1 + a2)
+        days = by_day(t1 + t2, a1 + a2)
         s = days[self.base.date()]
         self.assertEqual(s["idx"]["approvals_after_writes"], 3)  # ok, Parfait merci, yes go ahead
         self.assertEqual(s["idx"]["quick_approvals"], 2)          # ok (5 s) and codex yes (1 s)
@@ -180,3 +176,43 @@ class Doctor(Base):
         self.assertIn("parsed:", out)
         for phrase in ("login page", "cookie and a token", "renames files"):
             self.assertNotIn(phrase, out)
+
+
+class NoTextKept(Base):
+    def test_readers_return_no_message_text_or_paths(self):
+        t1, a1, k1 = read_claude(self.claude)
+        t2, a2, k2 = read_codex(self.codex)
+        blob = repr(t1) + repr(a1) + repr(t2) + repr(a2) + repr(k1) + repr(k2)
+        for phrase in ("login page", "cookie and a token", "renames files", "bouton de", "yes go ahead", "/home/demo", "-home-demo-app"):
+            self.assertNotIn(phrase, blob)
+        self.assertFalse(any(hasattr(t, "text") for t in t1 + t2))
+        self.assertTrue(all(len(t.project) == 8 for t in t1 + t2))
+
+    def test_commands_are_not_turns(self):
+        t1, _, _ = read_claude(self.claude)
+        self.assertNotIn("meta", {t.kind for t in t1})
+
+
+class Feedback(Base):
+    def test_feedback_command_and_share_card(self):
+        code, _ = run_cli(["feedback", "--yes", "--match", "partly", "--note", "PRIVATE NOTE"], self.env)
+        self.assertEqual(code, 0)
+        _, card = run_cli(["share-card"], self.env)
+        self.assertIn('"match": "partly"', card)
+        self.assertNotIn("PRIVATE NOTE", card)
+
+
+class Docs(unittest.TestCase):
+    def test_skill_frontmatter(self):
+        s = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        self.assertTrue(s.startswith("---\nname: mirror\ndescription: "))
+        self.assertIn("Never open, read, list, search or copy anything in `~/.claude`", s)
+
+    def test_threat_model_names_real_tests(self):
+        import re
+        doc = (ROOT / "THREAT-MODEL.md").read_text(encoding="utf-8")
+        src = (ROOT / "tests" / "test_mirror.py").read_text(encoding="utf-8")
+        names = set(re.findall(r"`(test_[a-z_]+)`", doc))
+        self.assertTrue(names)
+        for n in names:
+            self.assertIn("def " + n, src, n)

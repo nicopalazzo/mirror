@@ -10,7 +10,8 @@ It is an **exploration**, not a test, a score or a diagnosis. The numbers are qu
 - **Nothing to install.** Python 3.8 or newer, standard library only. Mirror checks your version and tells you what to do if it is too old.
 - **It opens session files only:** `~/.claude/projects/*/*.jsonl` and `~/.codex/sessions/**/rollout-*.jsonl` (plus `~/.codex/archived_sessions`). It never opens credentials, settings or databases in those folders. A test checks this against decoy files.
 - **First run asks for permission** and lists exactly what it will read.
-- **Your messages are not stored.** They are read in memory to count patterns. Reports and the share card contain numbers only, no prompt text.
+- **Your messages are not kept, not even in memory.** Each one is labelled by simple rules the moment it is read and only its type and length survive. Reports and the share card contain numbers only, no message text.
+- **Read the [threat model](THREAT-MODEL.md)** for who Mirror protects you from, how to check each protection, and what it does not cover.
 - **It writes only to `~/.mirror`.** Delete everything with `mirror.py forget`.
 - Reading the code takes ten minutes. Start with `mirror_core/readers.py`.
 
@@ -27,9 +28,21 @@ You need Python 3.8+ (check with `python3 --version`, or `py --version` on Windo
 | What a number means | `python3 mirror.py explain challenge` | `py mirror.py explain challenge` |
 | Numbers only, to share if you choose | `python3 mirror.py share-card` | `py mirror.py share-card` |
 | Something looks wrong: versions and counts, no text | `python3 mirror.py doctor` | `py mirror.py doctor` |
+| Record whether a day's numbers matched (used by the skill) | `python3 mirror.py feedback --match partly` | `py mirror.py feedback --match partly` |
 | Delete everything Mirror stored | `python3 mirror.py forget` | `py mirror.py forget` |
 
 If `py` is not found on Windows, try `python`. Use `--yes` after the command to accept the first-run notice without being asked.
+
+## Use it from Claude or Codex (no terminal typing)
+
+If you already work in Claude Code or Codex, install Mirror as a skill and just ask "how did my day go with AI?" (or type `/mirror`).
+
+| | Claude Code | Codex |
+|---|---|---|
+| Install (one command) | `git clone https://github.com/nicopalazzo/mirror ~/.claude/skills/mirror` | `git clone https://github.com/nicopalazzo/mirror ~/.codex/skills/mirror` |
+| Windows folder | `%USERPROFILE%\.claude\skills\mirror` | `%USERPROFILE%\.codex\skills\mirror` |
+
+Restart the tool after installing. The skill asks your permission first and tells you that what Mirror prints will appear in the chat, so your AI provider sees the numbers (never your messages). If you would rather keep everything local, run it in a terminal as above. The repository is private for now, so cloning it needs GitHub access.
 
 ## The four numbers
 

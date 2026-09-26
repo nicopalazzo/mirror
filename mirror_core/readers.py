@@ -5,17 +5,32 @@ Codex:       <codex dir>/sessions/**/rollout-*.jsonl and <codex dir>/archived_se
 Nothing else in those folders (credentials, settings, databases) is opened.
 """
 from __future__ import annotations
+import hashlib
 import json
 import os
 import re
 import time
 from pathlib import Path
 
+from .classify import classify
 from .model import Turn, Action
 from .timeutil import parse_ts
 
 REMINDER = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
 META_START = re.compile(r"^\s*(<command-|<local-command|<task-|\[Request interrupted)")
+
+
+def _pid(value):
+    """Project folders and paths are only ever used to count distinct projects, so keep a short hash, not the name."""
+    return hashlib.sha256(str(value).encode("utf-8", "replace")).hexdigest()[:8]
+
+
+def _turn(ts, tool, session, project, text):
+    """Label a message and drop its text immediately. Returns None for commands and other non-messages."""
+    kind = classify(text)
+    if kind == "meta":
+        return None
+    return Turn(ts, tool, session, project, kind=kind, chars=len(text))
 
 
 def default_dirs():
@@ -81,7 +96,7 @@ def read_claude(root: Path, since_days=None):
     for f in claude_files(root):
         if not _recent(f, since_days):
             continue
-        session, project = f.stem, f.parent.name
+        session, project = f.stem, _pid(f.parent.name)
         seen = set()
         for r in _lines(f):
             if not isinstance(r, dict) or r.get("isSidechain"):
@@ -102,7 +117,9 @@ def read_claude(root: Path, since_days=None):
                 text = REMINDER.sub("", c).strip()
                 if not text:
                     continue
-                turns.append(Turn(ts, "Claude", session, project, chars=len(text), text=text))
+                turn = _turn(ts, "Claude", session, project, text)
+                if turn:
+                    turns.append(turn)
             elif t == "assistant":
                 msg = r.get("message") or {}
                 model = msg.get("model") or "claude"
@@ -150,22 +167,24 @@ def read_codex(root: Path, since_days=None):
     for f in codex_files(root):
         if not _recent(f, since_days):
             continue
-        rows = list(_lines(f))
-        if not rows:
+        # Pass 1: three small facts, streaming, nothing kept. Pass 2 below streams again.
+        model, project, has_event_users, any_rows = None, _pid("codex"), False, False
+        for r in _lines(f):
+            any_rows = True
+            p0 = r.get("payload") or {}
+            if r.get("type") == "turn_context" and model is None:
+                model = p0.get("model")
+            elif r.get("type") == "session_meta" and p0.get("cwd") and project == _pid("codex"):
+                project = _pid(p0["cwd"])
+            elif r.get("type") == "event_msg" and p0.get("type") == "user_message":
+                has_event_users = True
+        if not any_rows:
             continue
+        model = model or "codex"
         m = re.search(r"rollout-[\dT-]+-(.+)\.jsonl$", f.name)
         session = m.group(1) if m else f.stem
-        project = "codex"
-        model = next(((r.get("payload") or {}).get("model") for r in rows if r.get("type") == "turn_context"), None) or "codex"
-        for r in rows:
-            if r.get("type") == "session_meta":
-                cwd = (r.get("payload") or {}).get("cwd")
-                if cwd:
-                    project = cwd
-                break
-        has_event_users = any(r.get("type") == "event_msg" and (r.get("payload") or {}).get("type") == "user_message" for r in rows)
         last_tok = None
-        for r in rows:
+        for r in _lines(f):
             ts = parse_ts(r.get("timestamp"))
             if ts is None:
                 continue
@@ -175,12 +194,16 @@ def read_codex(root: Path, since_days=None):
             if t == "event_msg" and pt == "user_message" and has_event_users:
                 text = (p.get("message") or "").strip()
                 if text:
-                    turns.append(Turn(ts, "Codex", session, project, chars=len(text), text=text))
+                    turn = _turn(ts, "Codex", session, project, text)
+                    if turn:
+                        turns.append(turn)
             elif t == "response_item" and pt == "message":
                 text = " ".join(c.get("text", "") for c in p.get("content", []) if isinstance(c, dict)).strip()
                 if p.get("role") == "user" and not has_event_users:
                     if text and not text.startswith("<") and not text.startswith("# AGENTS.md"):
-                        turns.append(Turn(ts, "Codex", session, project, chars=len(text), text=text))
+                        turn = _turn(ts, "Codex", session, project, text)
+                        if turn:
+                            turns.append(turn)
                 elif p.get("role") == "assistant" and text:
                     actions.append(Action(ts, "Codex", session, project, model, "reply"))
             elif t == "response_item" and pt in ("custom_tool_call", "function_call"):

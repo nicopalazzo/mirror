@@ -12,7 +12,7 @@ class Turn:
     project: str
     kind: str = ""
     chars: int = 0
-    text: str = ""  # kept in memory for labelling only; never written to disk by default
+    # There is deliberately no text field: a message is labelled the moment it is read, then dropped.
 
 
 @dataclass

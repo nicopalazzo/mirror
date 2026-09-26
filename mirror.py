@@ -22,7 +22,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mirror_core import __version__, store
-from mirror_core.classify import classify
 from mirror_core.explain import INDEXES, DISCLAIMER
 from mirror_core.indexes import by_day, QUICK_SECONDS
 from mirror_core.readers import default_dirs, read_claude, read_codex, inventory
@@ -46,9 +45,6 @@ def _load(args):
     t1, a1, k1 = read_claude(claude_root, args.since)
     t2, a2, k2 = read_codex(codex_root, args.since)
     turns, actions = t1 + t2, a1 + a2
-    for t in turns:
-        t.kind = classify(t.text)
-    turns = [t for t in turns if t.kind != "meta"]
     tokens = {}
     for src in (k1, k2):
         for m, v in src.items():
@@ -207,6 +203,23 @@ def cmd_doctor(args):
     return 0
 
 
+def cmd_feedback(args):
+    """Non-interactive version of the question at the end of `day`, for use from an assistant."""
+    turns, actions, tokens, missing, roots = _load(args)
+    all_days = by_day(turns, actions, args.quick_seconds)
+    d = _pick_day(args, all_days)
+    if d not in all_days:
+        print(f"No AI activity found for {d.isoformat()}, so there is nothing to attach the answer to.")
+        return 1
+    s = all_days[d]
+    store.add_feedback({
+        "day": d.isoformat(), "match": args.match, "note": args.note or "",
+        "numbers": {"prompts": s["prompts"], **s["idx"], "active_minutes": s["active_minutes"]},
+    })
+    print("Saved on this computer.")
+    return 0
+
+
 def cmd_forget(args):
     print("Deleted " + str(store.home()) if store.forget() else "Nothing to delete.")
     return 0
@@ -235,6 +248,9 @@ def main(argv=None):
     s = sub.add_parser("share-card", help="print numbers only, to send if you choose")
     s.add_argument("--last", type=int, default=7)
     s.add_argument("--include-note", action="store_true")
+    fb = sub.add_parser("feedback", parents=[common], help="record whether a day's numbers matched how it felt")
+    fb.add_argument("--match", required=True, choices=["yes", "no", "partly"])
+    fb.add_argument("--note", default="")
     sub.add_parser("doctor", parents=[common], help="print versions and counts (no message text) to debug a setup")
     sub.add_parser("forget", help="delete everything Mirror stored")
     args = p.parse_args(argv)
@@ -249,7 +265,7 @@ def main(argv=None):
         return cmd_doctor(args)
     if not _consent(args, default_dirs()):
         return 1
-    return {"day": cmd_day, "week": cmd_week, "report": cmd_report, "doctor": cmd_doctor}[args.cmd](args)
+    return {"day": cmd_day, "week": cmd_week, "report": cmd_report, "doctor": cmd_doctor, "feedback": cmd_feedback}[args.cmd](args)
 
 
 if __name__ == "__main__":
