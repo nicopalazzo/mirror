@@ -5,7 +5,7 @@ description: Use when the user asks how their day, week or habits with AI went, 
 
 # Mirror (skill)
 
-Mirror is a small Python tool in this folder. It reads the user's own AI session logs on their computer and reports four numbers as questions to ask themselves. It is an exploration, not a test, a score or a diagnosis.
+Mirror is a small Python tool in this folder. It reads the user's own AI session logs (Claude Code, Codex, Cursor) on their computer and reports four numbers as questions to ask themselves. It is an exploration, not a test, a score or a diagnosis.
 
 Run it from this skill's folder with `python3 mirror.py ...` (on Windows `py mirror.py ...`). If Python is missing, tell the user to install Python 3.8 or newer from python.org and stop.
 
@@ -13,7 +13,7 @@ Run it from this skill's folder with `python3 mirror.py ...` (on Windows `py mir
 
 Say, in the user's language:
 
-> Mirror reads your Claude Code and Codex session logs on this computer. Whatever it prints will appear in this chat, so your AI provider will see those numbers, never your messages. Is that OK? If you would rather keep it fully local, I will give you the commands to run yourself in a terminal instead.
+> Mirror reads your Claude Code, Codex and Cursor session logs on this computer. Whatever it prints will appear in this chat, so your AI provider will see those numbers, never your messages. Is that OK? If you would rather keep it fully local, I will give you the commands to run yourself in a terminal instead.
 
 - If they prefer the terminal: give them `python3 mirror.py day` (Windows: `py mirror.py day`) and stop.
 - If yes: run `python3 mirror.py sources`, show the output, and ask whether Mirror may read those folders. Only after a clear yes use `--yes` on later commands.

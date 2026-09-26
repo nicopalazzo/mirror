@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 import make_fixtures  # noqa: E402
 import mirror  # noqa: E402
 from mirror_core.classify import classify  # noqa: E402
-from mirror_core.readers import read_claude, read_codex  # noqa: E402
+from mirror_core.readers import read_claude, read_codex, read_cursor  # noqa: E402
 from mirror_core.indexes import by_day  # noqa: E402
 
 FORBIDDEN_IMPORTS = {"socket", "ssl", "urllib", "http", "requests", "ftplib", "smtplib", "telnetlib", "xmlrpc",
@@ -38,7 +38,9 @@ class Base(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.claude, self.codex, self.base = make_fixtures.build(self.root)
-        self.env = {"MIRROR_HOME": str(self.root / "home"), "MIRROR_CLAUDE_DIR": str(self.claude), "MIRROR_CODEX_DIR": str(self.codex)}
+        self.cursor = self.root / "cursor"
+        self.env = {"MIRROR_HOME": str(self.root / "home"), "MIRROR_CLAUDE_DIR": str(self.claude), "MIRROR_CODEX_DIR": str(self.codex),
+                    "MIRROR_CURSOR_DIR": str(self.cursor)}
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -76,6 +78,28 @@ class Readers(Base):
         self.assertEqual(tokens["codex-test"]["cached"], 400)
 
 
+class CursorReader(Base):
+    def test_messages_actions_and_untimed(self):
+        turns, actions, _ = read_cursor(self.cursor)
+        self.assertEqual(sorted(t.kind for t in turns), ["approval", "challenge", "directive"])  # timestamp-only row and subagent ignored
+        self.assertTrue(all(not a.timed for a in actions))
+        self.assertEqual(sum(1 for a in actions if a.cat == "write"), 1)
+        self.assertEqual(sum(1 for a in actions if a.cat == "research"), 1)
+        self.assertEqual(len({t.session for t in turns}), 1)
+
+    def test_no_text_kept(self):
+        turns, actions, _ = read_cursor(self.cursor)
+        self.assertNotIn("settings page", repr(turns) + repr(actions))
+        self.assertNotIn("SUBAGENT", repr(turns) + repr(actions))
+
+    def test_untimed_approval_is_not_counted_as_quick(self):
+        t, a, _ = read_cursor(self.cursor)
+        s = by_day(t, a)[self.base.date()]
+        self.assertEqual(s["idx"]["quick_approvals"], 0)
+        self.assertEqual(s["idx"]["approvals_after_writes"], 0)
+        self.assertEqual(s["idx"]["approvals_untimed"], 1)
+
+
 class Indexes(Base):
     def test_quick_approval_and_kinds(self):
         t1, a1, _ = read_claude(self.claude)
@@ -85,7 +109,7 @@ class Indexes(Base):
         self.assertEqual(s["idx"]["approvals_after_writes"], 3)  # ok, Parfait merci, yes go ahead
         self.assertEqual(s["idx"]["quick_approvals"], 2)          # ok (5 s) and codex yes (1 s)
         self.assertEqual(s["kinds"]["challenge"], 1)
-        self.assertEqual(sorted(s["tools"]), ["Claude", "Codex"])
+        self.assertEqual(sorted(s["tools"]), ["Claude", "Codex"])  # Cursor is read separately in CursorReader
 
 
 class Security(Base):
@@ -124,9 +148,10 @@ class Security(Base):
         self.assertEqual(code, 0)
         outside = [p for p in opened if str(self.root / "home") not in p and not p.endswith(".jsonl")]
         self.assertEqual(outside, [], outside)
-        bad = [p for p in opened if any(x in p for x in ("auth.json", "config.toml", "settings.json", "notes.txt"))]
+        bad = [p for p in opened if any(x in p for x in ("auth.json", "config.toml", "settings.json", "notes.txt", "mcp.json", "canvas", "subagents"))]
         self.assertEqual(bad, [])
         self.assertTrue(any(p.endswith("sess-1.jsonl") for p in opened))
+        self.assertTrue(any(p.endswith("chat-1.jsonl") for p in opened))
 
     def test_report_is_offline_and_has_no_prompt_text(self):
         run_cli(["report", "--yes"], self.env)

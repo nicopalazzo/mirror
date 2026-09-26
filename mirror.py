@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mirror: a local, read-only look at how you work with AI (Claude Code and Codex).
+"""Mirror: a local, read-only look at how you work with AI (Claude Code, Codex and Cursor).
 
 Nothing leaves your computer. No network code, no installs, standard library only.
 Run:  python3 mirror.py day      (Windows:  py mirror.py day)
@@ -24,8 +24,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mirror_core import __version__, store
 from mirror_core.explain import INDEXES, DISCLAIMER
 from mirror_core.indexes import by_day, QUICK_SECONDS
-from mirror_core.readers import default_dirs, read_claude, read_codex, inventory
+from mirror_core.readers import default_dirs, read_claude, read_codex, read_cursor, inventory
 from mirror_core.render_text import day_text, week_text, explain_text
+
+
+CONSENT_VERSION = 2  # bumped when Mirror started reading Cursor chats, so everyone is asked again
 
 
 def _utf8():
@@ -36,17 +39,25 @@ def _utf8():
             pass
 
 
-def _load(args):
-    claude_root, codex_root = default_dirs()
-    if args.claude_dir:
+def _dirs(args):
+    claude_root, codex_root, cursor_root = default_dirs()
+    if getattr(args, "claude_dir", None):
         claude_root = Path(args.claude_dir)
-    if args.codex_dir:
+    if getattr(args, "codex_dir", None):
         codex_root = Path(args.codex_dir)
+    if getattr(args, "cursor_dir", None):
+        cursor_root = Path(args.cursor_dir)
+    return claude_root, codex_root, cursor_root
+
+
+def _load(args):
+    claude_root, codex_root, cursor_root = _dirs(args)
     t1, a1, k1 = read_claude(claude_root, args.since)
     t2, a2, k2 = read_codex(codex_root, args.since)
-    turns, actions = t1 + t2, a1 + a2
+    t3, a3, k3 = read_cursor(cursor_root, args.since)
+    turns, actions = t1 + t2 + t3, a1 + a2 + a3
     tokens = {}
-    for src in (k1, k2):
+    for src in (k1, k2, k3):
         for m, v in src.items():
             tokens[m] = v
     missing = []
@@ -54,17 +65,20 @@ def _load(args):
         missing.append(f"no Claude Code logs found in {claude_root / 'projects'}")
     if not t2 and not a2:
         missing.append(f"no Codex logs found in {codex_root / 'sessions'}")
-    return turns, actions, tokens, missing, (claude_root, codex_root)
+    if not t3 and not a3:
+        missing.append(f"no Cursor logs found in {cursor_root / 'projects'}")
+    return turns, actions, tokens, missing, (claude_root, codex_root, cursor_root)
 
 
 def _consent(args, roots):
     cfg = store.load_config()
-    if cfg.get("consent_version") == 1:
+    if cfg.get("consent_version") == CONSENT_VERSION:
         return True
-    claude_root, codex_root = roots
+    claude_root, codex_root, cursor_root = roots
     print("Mirror reads your own AI session logs, on this computer only.")
     print("  It will read:  " + str(claude_root / "projects") + "  (Claude Code sessions)")
     print("                 " + str(codex_root / "sessions") + "  (Codex sessions)")
+    print("                 " + str(cursor_root / "projects" / "*" / "agent-transcripts") + "  (Cursor chats)")
     print("  It never opens anything else in those folders (no credentials, no settings).")
     print("  It never sends anything anywhere. It writes only to: " + str(store.home()) + "  (settings, your notes)")
     print("                                                        " + str(store.reports_dir()) + "  (report pages)")
@@ -77,7 +91,7 @@ def _consent(args, roots):
         print("Not a terminal, so I can't ask. Re-run with --yes to agree.", file=sys.stderr)
         return False
     if ok:
-        cfg["consent_version"] = 1
+        cfg["consent_version"] = CONSENT_VERSION
         cfg["consented_at"] = datetime.now().isoformat(timespec="seconds")
         store.save_config(cfg)
     return ok
@@ -92,13 +106,9 @@ def _pick_day(args, all_days):
 
 
 def cmd_sources(args):
-    claude_root, codex_root = default_dirs()
-    if args.claude_dir:
-        claude_root = Path(args.claude_dir)
-    if args.codex_dir:
-        codex_root = Path(args.codex_dir)
+    claude_root, codex_root, cursor_root = _dirs(args)
     print("Mirror looks here (it counts files without opening them):")
-    for name, v in inventory(claude_root, codex_root).items():
+    for name, v in inventory(claude_root, codex_root, cursor_root).items():
         when = datetime.fromtimestamp(v["newest"]).strftime("%Y-%m-%d") if v["newest"] else "-"
         print(f"  {name:<12} {v['files']:>4} session files, {v['bytes'] / 1e6:6.1f} MB, newest {when}\n               {v['path']}")
     print("\nNote: Claude Code deletes old sessions after about 30 days unless you change `cleanupPeriodDays` in its settings.")
@@ -143,7 +153,16 @@ def cmd_report(args):
     turns, actions, tokens, missing, roots = _load(args)
     all_days = by_day(turns, actions, args.quick_seconds)
     out = store.reports_dir() / f"mirror-{date.today().isoformat()}.html"
-    build(all_days, store.read_feedback(), tokens, out)
+    cov = {}
+    for t in turns:
+        c = cov.setdefault(t.tool, {"tool": t.tool, "dates": set(), "messages": 0})
+        c["dates"].add(t.ts.date())
+        c["messages"] += 1
+    for a in actions:
+        cov.setdefault(a.tool, {"tool": a.tool, "dates": set(), "messages": 0})["dates"].add(a.ts.date())
+    coverage = [{"tool": v["tool"], "first": min(v["dates"]).isoformat(), "last": max(v["dates"]).isoformat(),
+                 "days": len(v["dates"]), "messages": v["messages"]} for v in cov.values() if v["dates"]]
+    build(all_days, store.read_feedback(), tokens, out, coverage)
     print("Report saved in your Mirror folder: " + str(out))
     print("Open it again any time with the 'Mirror Report' launcher, or: python3 mirror.py report --open")
     if args.open:
@@ -183,17 +202,13 @@ def cmd_doctor(args):
     """Prints versions and counts only, never message text. Paste this if something looks wrong."""
     import platform
     from collections import Counter
-    claude_root, codex_root = default_dirs()
-    if args.claude_dir:
-        claude_root = Path(args.claude_dir)
-    if args.codex_dir:
-        codex_root = Path(args.codex_dir)
+    claude_root, codex_root, cursor_root = _dirs(args)
     print(f"mirror {__version__}")
     print(f"python {platform.python_version()} on {platform.system()} {platform.release()} ({platform.machine()})")
     print("terminal encoding: " + str(getattr(sys.stdout, "encoding", "?")))
-    for name, v in inventory(claude_root, codex_root).items():
+    for name, v in inventory(claude_root, codex_root, cursor_root).items():
         print(f"{name}: {v['files']} session files")
-    if not _consent(args, (claude_root, codex_root)):
+    if not _consent(args, (claude_root, codex_root, cursor_root)):
         return 1
     turns, actions, tokens, missing, roots = _load(args)
     print(f"parsed: {len(turns)} of your messages, {len(actions)} AI actions, {len(tokens)} models with token counts")
@@ -236,6 +251,7 @@ def main(argv=None):
     common.add_argument("--yes", action="store_true", help="agree to the first-run notice without asking")
     common.add_argument("--claude-dir", help="Claude Code folder (default ~/.claude)")
     common.add_argument("--codex-dir", help="Codex folder (default ~/.codex)")
+    common.add_argument("--cursor-dir", help="Cursor folder (default ~/.cursor)")
     common.add_argument("--quick-seconds", type=int, default=QUICK_SECONDS, help="what counts as a quick approval (default 15)")
     common.add_argument("--day", help="YYYY-MM-DD (default today)")
     common.add_argument("--yesterday", action="store_true")
@@ -265,7 +281,7 @@ def main(argv=None):
         return cmd_sources(args) or 0
     if args.cmd == "doctor":
         return cmd_doctor(args)
-    if not _consent(args, default_dirs()):
+    if not _consent(args, _dirs(args)):
         return 1
     return {"day": cmd_day, "week": cmd_week, "report": cmd_report, "doctor": cmd_doctor, "feedback": cmd_feedback}[args.cmd](args)
 

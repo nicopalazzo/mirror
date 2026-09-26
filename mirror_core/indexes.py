@@ -19,27 +19,32 @@ def _rubber_stamp(turns, actions, quick_seconds):
         by_session[(t.tool, t.session)].append(("h", t.ts, t))
     for a in actions:
         by_session[(a.tool, a.session)].append(("a", a.ts, a))
-    quick = total = 0
+    quick = total = untimed = 0
     longest = 0
     writes_total = 0
     for events in by_session.values():
         events.sort(key=lambda e: e[1])
         last_ai = None
+        last_timed = True
         run_writes = 0
         for kind, ts, obj in events:
             if kind == "a":
                 last_ai = ts
+                last_timed = obj.timed
                 if obj.cat == "write":
                     run_writes += 1
                     writes_total += 1
                     longest = max(longest, run_writes)
             else:
                 if obj.kind == "approval" and run_writes > 0 and last_ai is not None:
-                    total += 1
-                    if (ts - last_ai).total_seconds() < quick_seconds:
-                        quick += 1
+                    if not last_timed:
+                        untimed += 1  # the log has no time for the AI's turn, so the gap cannot be measured
+                    else:
+                        total += 1
+                        if (ts - last_ai).total_seconds() < quick_seconds:
+                            quick += 1
                 run_writes = 0
-    return quick, total, longest
+    return quick, total, longest, untimed
 
 
 def _active_minutes(stamps):
@@ -61,7 +66,7 @@ def day_stats(turns, actions, quick_seconds=QUICK_SECONDS):
     sessions = {(t.tool, t.session) for t in turns} | {(a.tool, a.session) for a in actions}
     projects = {(t.tool, t.project) for t in turns} | {(a.tool, a.project) for a in actions}
     stamps = [t.ts for t in turns] + [a.ts for a in actions]
-    quick, appr_after_writes, longest = _rubber_stamp(turns, actions, quick_seconds)
+    quick, appr_after_writes, longest, untimed = _rubber_stamp(turns, actions, quick_seconds)
     non_reply = sum(v for k, v in cats.items() if k != "reply")
     hours_h = Counter(t.ts.hour for t in turns if t.kind != "meta")
     hours_a = Counter(a.ts.hour for a in actions)
@@ -85,6 +90,7 @@ def day_stats(turns, actions, quick_seconds=QUICK_SECONDS):
             "approval_pct": _pct(kinds["approval"], engaged),
             "quick_approvals": quick,
             "approvals_after_writes": appr_after_writes,
+            "approvals_untimed": untimed,
             "actions_per_prompt": None if not engaged else round(non_reply / engaged, 1),
             "writes": cats.get("write", 0),
             "longest_write_run": longest,
@@ -110,6 +116,7 @@ def pooled(day_list):
     ap = sum(s["_counts"]["approval"] for s in day_list)
     quick = sum(s["idx"]["quick_approvals"] for s in day_list)
     aaw = sum(s["idx"]["approvals_after_writes"] for s in day_list)
+    untimed = sum(s["idx"].get("approvals_untimed", 0) for s in day_list)
     acts = sum(s["ai_actions"] for s in day_list)
     return {
         "days": len(day_list),

@@ -54,6 +54,35 @@ def build(root: Path, base=None):
     ]
     (sess / "rollout-2026-01-01T00-00-00-abc-123.jsonl").write_text("\n".join(json.dumps(r) for r in crow) + "\n", encoding="utf-8")
 
+    # Cursor: a time only on the human's messages; a subagent transcript that must be ignored.
+    off = base.utcoffset()
+    mins = int(off.total_seconds() // 60)
+    tz = "UTC%+d" % (mins // 60) if mins % 60 == 0 else "UTC%+d:%02d" % (mins // 60, abs(mins) % 60)
+    d0 = base.replace(hour=10)
+    def cts(dt):
+        return "%s, %s %d, %d, %d:%02d %s (%s)" % (dt.strftime("%A"), dt.strftime("%b"), dt.day, dt.year, (dt.hour % 12) or 12, dt.minute, "AM" if dt.hour < 12 else "PM", tz)
+    def cu(q, dt):
+        return {"role": "user", "message": {"content": [{"type": "text", "text": "<timestamp>%s</timestamp>\n<user_query>\n%s\n</user_query>" % (cts(dt), q)}]}}
+    def ca(blocks):
+        return {"role": "assistant", "message": {"content": blocks}}
+    chat = codex.parent / "cursor" / "projects" / "demo" / "agent-transcripts" / "chat-1"
+    (chat / "subagents").mkdir(parents=True)
+    crow2 = [
+        {"role": "user", "message": {"content": [{"type": "text", "text": "<timestamp>%s</timestamp>" % cts(d0)}]}},  # timestamp-only row: not a message
+        cu("Please build the settings page", d0),
+        ca([{"type": "text", "text": "Working."}, {"type": "tool_use", "name": "Read", "input": {}}, {"type": "tool_use", "name": "StrReplace", "input": {}}]),
+        cu("ok", d0 + timedelta(minutes=2)),
+        ca([{"type": "tool_use", "name": "WebSearch", "input": {}}]),
+        cu("Pourquoi tu as oublié le fichier de configuration ?", d0 + timedelta(minutes=5)),
+        {"status": "x", "type": "error"},
+    ]
+    (chat / "chat-1.jsonl").write_text("\n".join(json.dumps(r) for r in crow2) + "\n", encoding="utf-8")
+    (chat / "subagents" / "sub-1.jsonl").write_text(json.dumps(cu("SUBAGENT PROMPT do not count", d0)) + "\n", encoding="utf-8")
+    cursor = codex.parent / "cursor"
+    (cursor / "mcp.json").write_text('{"token": "do-not-read"}', encoding="utf-8")
+    (cursor / "projects" / "demo" / "canvases").mkdir()
+    (cursor / "projects" / "demo" / "canvases" / "x.canvas.tsx").write_text("do-not-read", encoding="utf-8")
+
     # Decoys: files Mirror must never open.
     (claude / "settings.json").write_text('{"secret": "do-not-read"}', encoding="utf-8")
     (claude / "projects" / "notes.txt").write_text("do-not-read", encoding="utf-8")

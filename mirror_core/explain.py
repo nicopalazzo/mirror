@@ -11,7 +11,7 @@ INDEXES = {
     "approval": {
         "title": "Approval share and quick approvals",
         "measures": "Share of your prompts that are short agreements (\"ok\", \"go\", \"vas-y\"). Quick approvals are agreements that arrived within 15 seconds of an AI turn that changed files.",
-        "cannot": "A quick \"ok\" can be a well-informed decision or a skim. The 15-second line is arbitrary; you can change it with --quick-seconds.",
+        "cannot": "A quick \"ok\" can be a well-informed decision or a skim. The 15-second line is arbitrary; you can change it with --quick-seconds. Cursor's logs have no reply times, so its approvals cannot be timed.",
         "ask": "Which change did I approve today that I could not explain in my own words?",
         "practice": "Before you accept a change, say one thing it does and one thing you would check.",
     },

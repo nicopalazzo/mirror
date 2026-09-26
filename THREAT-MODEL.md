@@ -6,7 +6,7 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 
 | Asset | How sensitive |
 |---|---|
-| **Your session logs** (Claude Code, Codex) | High. They hold your messages, pasted secrets, client and colleague names, and other people's information. |
+| **Your session logs** (Claude Code, Codex, Cursor) | High. They hold your messages, pasted secrets, client and colleague names, and other people's information. |
 | **Numbers Mirror derives** (counts, percentages, active minutes) | Low. |
 | **Your notes** (the optional answer to "does this match your day?") | Medium. They are your own words. |
 
@@ -26,7 +26,7 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | Protection | How to verify |
 |---|---|
 | No networking or command-running code | `python3 -m unittest discover -s tests -v`, test `test_no_network_or_exec_code` |
-| Opens only session files (`*.jsonl`), never credentials or settings | Same suite, test `test_only_session_files_are_opened`, which plants decoy files |
+| Opens only session files (`*.jsonl`), never credentials, settings, MCP configuration, canvases or Cursor subagent transcripts | Same suite, test `test_only_session_files_are_opened`, which plants decoy files |
 | **Message text is dropped as soon as it is read.** Each message is labelled by simple rules, then only its type and length are kept. Project folders and paths become short hashes. | Test `test_readers_return_no_message_text_or_paths` |
 | Reports and share cards contain no message text | Tests `test_report_is_offline_and_has_no_prompt_text`, `test_share_card_has_numbers_only` |
 | The double-click launchers (`Mirror.command`, `Mirror.bat`) only run `mirror.py` and fetch nothing | Test `test_launchers_exist_and_do_not_fetch_anything`; CI also runs each launcher on Windows, macOS and Linux |
@@ -45,6 +45,10 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 - **The report page contains your notes** (it shows them back to you). Send the share card, not the report file.
 - **The launchers are unsigned.** Your computer warns you the first time; that is expected and the only way to know they are unmodified is to compare with the GitHub repo.
 - **The share card is your choice.** If you paste it into a chat or send it, whoever receives it sees those numbers.
+
+## Consent changes when the reading changes
+
+The first-run notice lists every folder Mirror reads. When Mirror started reading Cursor chats, the consent version went from 1 to 2, so everyone who had agreed before is asked again. Test `test_untimed_approval_is_not_counted_as_quick` and `test_no_text_kept` cover the Cursor reader.
 
 ## Rule for changing Mirror
 

@@ -1,6 +1,6 @@
 # Mirror
 
-**A local, read-only look at how you work with AI.** Mirror reads your own Claude Code and Codex session logs on your computer and shows you how your day went: what you asked, when you pushed back, when you just said "ok", how much the AI did between your messages.
+**A local, read-only look at how you work with AI.** Mirror reads your own Claude Code, Codex and Cursor session logs on your computer and shows you how your day went: what you asked, when you pushed back, when you just said "ok", how much the AI did between your messages.
 
 It is an **exploration**, not a test, a score or a diagnosis. The numbers are questions to ask yourself.
 
@@ -8,7 +8,7 @@ It is an **exploration**, not a test, a score or a diagnosis. The numbers are qu
 
 - **No network code.** Mirror imports no networking library. A test fails if one is added.
 - **Nothing to install.** Python 3.8 or newer, standard library only. Mirror checks your version and tells you what to do if it is too old.
-- **It opens session files only:** `~/.claude/projects/*/*.jsonl` and `~/.codex/sessions/**/rollout-*.jsonl` (plus `~/.codex/archived_sessions`). It never opens credentials, settings or databases in those folders. A test checks this against decoy files.
+- **It opens session files only:** `~/.claude/projects/*/*.jsonl`, `~/.codex/sessions/**/rollout-*.jsonl` (plus `~/.codex/archived_sessions`) and `~/.cursor/projects/*/agent-transcripts/*/*.jsonl`. It never opens credentials, settings, MCP configuration, canvases, subagent transcripts or databases in those folders. A test checks this against decoy files.
 - **First run asks for permission** and lists exactly what it will read.
 - **Your messages are not kept, not even in memory.** Each one is labelled by simple rules the moment it is read and only its type and length survive. Reports and the share card contain numbers only, no message text. (The report page does show your own notes, so send the share card, not the report file.)
 - **Read the [threat model](THREAT-MODEL.md)** for who Mirror protects you from, how to check each protection, and what it does not cover.
@@ -43,6 +43,7 @@ You need Python 3.8+ (check with `python3 --version`, or `py --version` on Windo
 | Numbers only, to share if you choose | `python3 mirror.py share-card` | `py mirror.py share-card` |
 | Something looks wrong: versions and counts, no text | `python3 mirror.py doctor` | `py mirror.py doctor` |
 | Record whether a day's numbers matched (used by the skill) | `python3 mirror.py feedback --match partly` | `py mirror.py feedback --match partly` |
+| Read from a non-default folder | `python3 mirror.py day --cursor-dir /path/to/.cursor` (also `--claude-dir`, `--codex-dir`) | same with `py` |
 | Delete everything Mirror stored | `python3 mirror.py forget` | `py mirror.py forget` |
 
 If `py` is not found on Windows, try `python`. Use `--yes` after the command to accept the first-run notice without being asked.
@@ -72,7 +73,8 @@ At the end of `day`, Mirror asks whether the numbers match how the day felt. Tha
 ## Limits, said plainly
 
 - **Message labels are rules, not understanding.** They work in English and French and are wrong some of the time. On one person's 93 hand-labelled messages the rules agreed about 70% of the time (a small check, one labeller). Treat the split as rough.
-- **Only tools whose logs Mirror can read are counted.** Web chats (claude.ai, chatgpt.com) leave no local log. Cursor is not read yet.
+- **Only tools whose logs Mirror can read are counted:** Claude Code, Codex and Cursor. Web chats (claude.ai, chatgpt.com) leave no local log.
+- **Cursor has no reply times.** Its logs put a time only on your messages, so "quick approvals" cannot be measured for Cursor and active time is approximate. The report says so. I have checked the Cursor reader against one person's Mac logs only; the folder is `~/.cursor` on every system, but Windows layouts are unverified.
 - **Claude Code deletes old sessions after about 30 days** unless you raise `cleanupPeriodDays` in its settings, so history is short.
 - **"Quick approval" is an arbitrary 15-second line.** Change it with `--quick-seconds`.
 - **Different Python or OS versions:** the code is checked for Python 3.8 syntax and the automated tests run on Python 3.8 to 3.13 on Mac, Linux and Windows. If a setup still fails, `doctor` prints what is needed to fix it, without any of your text.

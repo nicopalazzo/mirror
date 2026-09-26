@@ -2,6 +2,7 @@
 
 Claude Code: <claude dir>/projects/<project>/<session>.jsonl
 Codex:       <codex dir>/sessions/**/rollout-*.jsonl and <codex dir>/archived_sessions/rollout-*.jsonl
+Cursor:      <cursor dir>/projects/<project>/agent-transcripts/<chat>/<chat>.jsonl (not the subagents folder)
 Nothing else in those folders (credentials, settings, databases) is opened.
 """
 from __future__ import annotations
@@ -36,7 +37,8 @@ def _turn(ts, tool, session, project, text):
 def default_dirs():
     claude = os.environ.get("MIRROR_CLAUDE_DIR") or os.environ.get("CLAUDE_CONFIG_DIR") or str(Path.home() / ".claude")
     codex = os.environ.get("MIRROR_CODEX_DIR") or os.environ.get("CODEX_HOME") or str(Path.home() / ".codex")
-    return Path(claude), Path(codex)
+    cursor = os.environ.get("MIRROR_CURSOR_DIR") or str(Path.home() / ".cursor")
+    return Path(claude), Path(codex), Path(cursor)
 
 
 def claude_files(root: Path):
@@ -55,6 +57,13 @@ def codex_files(root: Path):
     if a.is_dir():
         out += list(a.glob("rollout-*.jsonl"))
     return sorted(out)
+
+
+def cursor_files(root: Path):
+    proj = root / "projects"
+    if not proj.is_dir():
+        return []
+    return sorted(set(proj.glob("*/agent-transcripts/*/*.jsonl")) | set(proj.glob("*/agent-transcripts/*.jsonl")))
 
 
 def _recent(path: Path, since_days):
@@ -124,7 +133,7 @@ def read_claude(root: Path, since_days=None):
                 msg = r.get("message") or {}
                 model = msg.get("model") or "claude"
                 mid = msg.get("id")
-                if mid and mid not in seen:
+                if mid and mid not in seen and not str(model).startswith("<"):
                     seen.add(mid)
                     u = msg.get("usage") or {}
                     d = tokens.setdefault(model, {"messages": 0, "output": 0, "input": 0, "cached": 0})
@@ -221,7 +230,88 @@ def read_codex(root: Path, since_days=None):
     return turns, actions, tokens
 
 
-def inventory(claude_root: Path, codex_root: Path):
+_MONTHS = {m: i + 1 for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])}
+_CURSOR_TS = re.compile(r"<timestamp>\s*(?:\w+,\s*)?(\w{3})\w*\s+(\d{1,2}),\s*(\d{4}),\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*(?:\(UTC([+-]\d{1,2})(?::?(\d{2}))?\))?", re.I)
+_CURSOR_Q = re.compile(r"<user_query>\s*(.*?)\s*</user_query>", re.S)
+_CURSOR_READ = {"Read", "ReadFile", "Glob", "Grep", "LS", "SemanticSearch", "ReadLints", "GetDynamicTools", "GetMcpTools", "SearchConversations", "rg"}
+_CURSOR_WRITE = {"Write", "StrReplace", "ApplyPatch", "Delete", "EditNotebook"}
+_CURSOR_WEB = {"WebSearch", "WebFetch"}
+
+
+def _cursor_ts(text):
+    """Cursor writes '<timestamp>Friday, Sep 25, 2026, 1:01 PM (UTC+2)</timestamp>' on each message of yours."""
+    from datetime import datetime, timedelta, timezone
+    m = _CURSOR_TS.search(text)
+    if not m:
+        return None
+    mon = _MONTHS.get(m.group(1).lower()[:3])
+    if not mon:
+        return None
+    hour = int(m.group(4)) % 12 + (12 if m.group(6).upper() == "PM" else 0)
+    try:
+        naive = datetime(int(m.group(3)), mon, int(m.group(2)), hour, int(m.group(5)))
+    except ValueError:
+        return None
+    if m.group(7) is not None:
+        sign = -1 if m.group(7).startswith("-") else 1
+        off = timedelta(hours=abs(int(m.group(7))), minutes=int(m.group(8) or 0)) * sign
+        return naive.replace(tzinfo=timezone(off)).astimezone()
+    return naive.astimezone()  # no zone written: assume this computer's
+
+
+def _cursor_cat(name):
+    if name in _CURSOR_WRITE:
+        return "write"
+    if name in _CURSOR_READ:
+        return "read"
+    if name in _CURSOR_WEB:
+        return "research"
+    return "shell"
+
+
+def read_cursor(root: Path, since_days=None):
+    """Cursor logs carry a time only on your messages. AI replies and tool calls inherit the time of your latest
+    message and are marked untimed, so anything that needs real timing (quick approvals) skips them."""
+    turns, actions, tokens = [], [], {}
+    for f in cursor_files(root):
+        if not _recent(f, since_days):
+            continue
+        session = f.stem
+        parts = f.parts
+        project = _pid(parts[parts.index("agent-transcripts") - 1]) if "agent-transcripts" in parts else _pid("cursor")
+        last_ts = None
+        for r in _lines(f):
+            if not isinstance(r, dict):
+                continue
+            role = r.get("role")
+            msg = r.get("message") or {}
+            content = msg.get("content")
+            if role == "user":
+                text = content if isinstance(content, str) else " ".join(x.get("text", "") for x in (content or []) if isinstance(x, dict) and x.get("type") == "text")
+                ts = _cursor_ts(text)
+                if ts is not None:
+                    last_ts = ts
+                q = _CURSOR_Q.search(text)
+                if q and q.group(1).strip() and last_ts is not None:
+                    turn = _turn(last_ts, "Cursor", session, project, q.group(1))
+                    if turn:
+                        turns.append(turn)
+            elif role == "assistant" and last_ts is not None:
+                if isinstance(content, str):
+                    if content.strip():
+                        actions.append(Action(last_ts, "Cursor", session, project, "cursor", "reply", timed=False))
+                    continue
+                for x in content or []:
+                    if not isinstance(x, dict):
+                        continue
+                    if x.get("type") == "text" and (x.get("text") or "").strip():
+                        actions.append(Action(last_ts, "Cursor", session, project, "cursor", "reply", timed=False))
+                    elif x.get("type") == "tool_use":
+                        actions.append(Action(last_ts, "Cursor", session, project, "cursor", _cursor_cat(x.get("name", "")), timed=False))
+    return turns, actions, tokens
+
+
+def inventory(claude_root: Path, codex_root: Path, cursor_root: Path = None):
     """Counts files by stat() only. Opens nothing."""
     def summ(files):
         total = 0
@@ -234,7 +324,10 @@ def inventory(claude_root: Path, codex_root: Path):
             except OSError:
                 pass
         return {"files": len(files), "bytes": total, "newest": newest}
-    return {
+    out = {
         "Claude Code": dict(path=str(claude_root / "projects"), **summ(claude_files(claude_root))),
         "Codex": dict(path=str(codex_root / "sessions") + " (+ archived_sessions)", **summ(codex_files(codex_root))),
     }
+    if cursor_root is not None:
+        out["Cursor"] = dict(path=str(cursor_root / "projects" / "*" / "agent-transcripts"), **summ(cursor_files(cursor_root)))
+    return out

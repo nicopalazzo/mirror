@@ -60,7 +60,10 @@ def day_text(day, stats, all_days, tools_missing=()):
                  + _usual(i["pushback_pct"], base, "pushback_pct"))
     lines.append(f"   Ask yourself: {INDEXES['challenge']['ask']}")
     if i["approvals_after_writes"]:
-        lines.append(f"2. Quick approvals: {i['quick_approvals']} of {i['approvals_after_writes']} approvals after file changes came within 15 s")
+        extra = f" (plus {i['approvals_untimed']} in Cursor, whose log has no reply times, so they cannot be timed)" if i.get("approvals_untimed") else ""
+        lines.append(f"2. Quick approvals: {i['quick_approvals']} of {i['approvals_after_writes']} approvals after file changes came within 15 s" + extra)
+    elif i.get("approvals_untimed"):
+        lines.append(f"2. Approvals: {i['approvals_untimed']} came after Cursor changed files, but Cursor's log has no reply times, so they cannot be timed")
     else:
         lines.append(f"2. Approvals: {_fmt(i['approval_pct'], '%')} of prompts; none directly after file changes today")
     lines.append(f"   Ask yourself: {INDEXES['approval']['ask']}")

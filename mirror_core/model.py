@@ -24,6 +24,7 @@ class Action:
     project: str
     actor: str
     cat: str  # reply, read, research, write, shell
+    timed: bool = True  # False when the log carries no time for this action (Cursor replies)
 
 
 CATEGORIES = ["reply", "read", "research", "write", "shell"]
