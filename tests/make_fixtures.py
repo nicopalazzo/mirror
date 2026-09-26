@@ -60,3 +60,10 @@ def build(root: Path, base=None):
     (codex / "auth.json").write_text('{"token": "do-not-read"}', encoding="utf-8")
     (codex / "config.toml").write_text("do-not-read", encoding="utf-8")
     return claude, codex, base
+
+
+if __name__ == "__main__":
+    import sys
+    out = Path(sys.argv[1])
+    build(out)
+    print("fixtures written to " + str(out))

@@ -216,3 +216,20 @@ class Docs(unittest.TestCase):
         self.assertTrue(names)
         for n in names:
             self.assertIn("def " + n, src, n)
+
+
+class Launchers(unittest.TestCase):
+    NETWORK_WORDS = ("curl", "wget", "invoke-webrequest", "bitsadmin", "certutil", "powershell", "ssh ", "scp ", "ftp", "nc ", "http://")
+
+    def test_launchers_exist_and_do_not_fetch_anything(self):
+        for name in ("Mirror.command", "Mirror.bat"):
+            text = (ROOT / name).read_text(encoding="utf-8").lower()
+            for w in self.NETWORK_WORDS:
+                self.assertNotIn(w, text, name + " contains " + w)
+            self.assertIn("mirror.py", text)
+
+    def test_command_file_is_executable_and_bat_is_crlf(self):
+        if os.name != "nt":
+            self.assertTrue(os.access(ROOT / "Mirror.command", os.X_OK))
+        self.assertIn(b"\r\n", (ROOT / "Mirror.bat").read_bytes())
+        self.assertTrue((ROOT / "Mirror.command").read_text(encoding="utf-8").startswith("#!/bin/bash"))

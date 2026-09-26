@@ -17,3 +17,18 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m unittest discover -s tests -v
+      - name: Launcher smoke test (macOS/Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          python tests/make_fixtures.py "$RUNNER_TEMP/fx"
+          MIRROR_HOME="$RUNNER_TEMP/fx/home" MIRROR_CLAUDE_DIR="$RUNNER_TEMP/fx/claude" MIRROR_CODEX_DIR="$RUNNER_TEMP/fx/codex" ./Mirror.command --test
+      - name: Launcher smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          python tests\make_fixtures.py "%RUNNER_TEMP%\fx"
+          set MIRROR_HOME=%RUNNER_TEMP%\fx\home
+          set MIRROR_CLAUDE_DIR=%RUNNER_TEMP%\fx\claude
+          set MIRROR_CODEX_DIR=%RUNNER_TEMP%\fx\codex
+          call Mirror.bat --test

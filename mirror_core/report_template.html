@@ -23,6 +23,11 @@ svg{display:block;width:100%;height:auto}svg text{fill:var(--ink2);font-size:14p
 <h2>When you were active</h2><div class="card"><h3>Your messages by hour</h3><div id="heat"></div></div>
 <h2>Four numbers, and what each can and cannot tell you</h2><div id="idx"></div>
 <h2>Tokens</h2><div class="card"><table id="tok"></table><p class="note">Counts recorded in the tools' own logs. Not every tool records them.</p></div>
+<h2>Numbers to share, if you choose</h2>
+<div class="card"><p class="note">This is what <code>share-card</code> prints: numbers only, never your messages. Mirror sends nothing; copying is your decision. Your notes are left out unless you tick the box.</p>
+<p><label><input type="checkbox" id="incnote"> Include my notes</label></p>
+<textarea id="card" readonly rows="10" style="width:100%;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px"></textarea>
+<p><button id="copy" type="button" style="font:inherit;padding:6px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer">Copy</button> <span id="copied" class="note"></span></p></div>
 <h2>Your notes on how well this matched</h2><div class="card"><table id="fb"></table></div>
 </main>
 <script>
@@ -44,5 +49,9 @@ let s=`<svg viewBox="0 0 ${lab+hrs.length*cw} ${days.length*ch+28}">`;hrs.forEac
 days.forEach((d,r)=>{s+=`<text x="0" y="${28+r*ch+20}">${d.date.slice(5)}</text>`;hrs.forEach((h,i)=>{const v=d.hours_prompts[h]||0;s+=`<rect x="${lab+i*cw+1}" y="${24+r*ch+1}" width="${cw-2}" height="${ch-2}" rx="4" fill="${ramp(v)}"><title>${d.date} ${h}h: ${v}</title></rect>`})});$('heat').innerHTML=s+'</svg>'})();
 $('idx').innerHTML=Object.values(D.indexes).map(e=>`<div class="card"><h3>${esc(e.title)}</h3><p>${esc(e.measures)}</p><p class="note"><b>Cannot tell you:</b> ${esc(e.cannot)}</p><div class="q"><b>Ask yourself:</b> ${esc(e.ask)}</div></div>`).join('');
 $('tok').innerHTML='<tr><th>Model</th><th class="n">Messages</th><th class="n">Output</th><th class="n">New input</th><th class="n">Cached</th></tr>'+Object.entries(D.tokens).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${v.messages}</td><td class="n">${v.output.toLocaleString()}</td><td class="n">${v.input.toLocaleString()}</td><td class="n">${v.cached.toLocaleString()}</td></tr>`).join('');
+function card(){const inc=$('incnote').checked;const last=D.feedback.slice(-7).map(x=>{const o={day:x.day,match:x.match,numbers:x.numbers};if(inc)o.note=x.note||'';return o});
+ return last.length?JSON.stringify(last,null,2):'Nothing to share yet. Answer "Does this match how your day felt?" at the end of the day summary first.'}
+$('card').value=card();$('incnote').onchange=()=>{$('card').value=card()};
+$('copy').onclick=()=>{const t=$('card');t.select();let ok=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t.value);ok=true}else{ok=document.execCommand('copy')}}catch(e){try{ok=document.execCommand('copy')}catch(e2){}}$('copied').textContent=ok?'Copied.':'Select the text above and copy it yourself.'};
 $('fb').innerHTML=D.feedback.length?'<tr><th>Day</th><th>Did it match?</th><th>Your note</th></tr>'+D.feedback.map(x=>`<tr><td>${esc(x.day)}</td><td>${esc(x.match)}</td><td>${esc(x.note||'')}</td></tr>`).join(''):'<tr><td>None yet. Run <code>mirror day</code> and answer the last question.</td></tr>';
 </script></body></html>

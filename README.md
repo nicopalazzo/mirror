@@ -10,12 +10,25 @@ It is an **exploration**, not a test, a score or a diagnosis. The numbers are qu
 - **Nothing to install.** Python 3.8 or newer, standard library only. Mirror checks your version and tells you what to do if it is too old.
 - **It opens session files only:** `~/.claude/projects/*/*.jsonl` and `~/.codex/sessions/**/rollout-*.jsonl` (plus `~/.codex/archived_sessions`). It never opens credentials, settings or databases in those folders. A test checks this against decoy files.
 - **First run asks for permission** and lists exactly what it will read.
-- **Your messages are not kept, not even in memory.** Each one is labelled by simple rules the moment it is read and only its type and length survive. Reports and the share card contain numbers only, no message text.
+- **Your messages are not kept, not even in memory.** Each one is labelled by simple rules the moment it is read and only its type and length survive. Reports and the share card contain numbers only, no message text. (The report page does show your own notes, so send the share card, not the report file.)
 - **Read the [threat model](THREAT-MODEL.md)** for who Mirror protects you from, how to check each protection, and what it does not cover.
 - **It writes only to `~/.mirror`.** Delete everything with `mirror.py forget`.
 - Reading the code takes ten minutes. Start with `mirror_core/readers.py`.
 
-## Run it
+## Easiest: double-click
+
+1. Get the folder onto your computer (download the zip from GitHub and unzip it, or `git clone`).
+2. **Mac:** double-click **`Mirror.command`**. **Windows:** double-click **`Mirror.bat`**.
+3. A small window opens. The first time, it lists what Mirror will read and asks `y/N`. It then shows how today went, asks whether that matched your day, and opens the report in your browser.
+
+The files are not signed, so your computer will warn you the first time:
+- **Mac:** "cannot be opened because it is from an unidentified developer". Right-click the file, choose **Open**, then **Open** again. If that option is missing: System Settings, Privacy & Security, scroll down, **Open Anyway**. A zip download can also lose the file's "runnable" flag; if double-clicking does nothing, use the terminal method below or `git clone`.
+- **Windows:** SmartScreen says "Windows protected your PC". Choose **More info**, then **Run anyway**.
+- **No Python?** Both launchers say so. Install Python 3.8+ from python.org (on a Mac without it, macOS may offer to install developer tools; that also works).
+
+Both launchers only run `mirror.py`. They download nothing, and a test checks that.
+
+## Run it in a terminal
 
 You need Python 3.8+ (check with `python3 --version`, or `py --version` on Windows). Then, in the `mirror` folder:
 
