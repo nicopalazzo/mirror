@@ -191,7 +191,7 @@ def hook_main(stdin_text):
     """Entry point for the UserPromptSubmit hook. Prints JSON with systemMessage or nothing."""
     try:
         data = json.loads(stdin_text or "{}")
-        msg = on_prompt(data.get("session_id"), data.get("prompt", ""))
+        msg = on_prompt(data.get("session_id"), data.get("user_prompt", ""))
         if msg:
             return json.dumps({"systemMessage": msg})
     except Exception:  # never break the user's prompt

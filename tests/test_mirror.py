@@ -369,7 +369,7 @@ class Nudge(unittest.TestCase):
 
     def test_hook_never_raises(self):
         self.assertEqual(self.n.hook_main("not json"), "")
-        self.assertEqual(self.n.hook_main('{"prompt": null}'), json.dumps({"systemMessage": self.n.INTRO}))
+        self.assertEqual(self.n.hook_main('{"user_prompt": null}'), json.dumps({"systemMessage": self.n.INTRO}))
 
 
 class ClaudePlugin(unittest.TestCase):
