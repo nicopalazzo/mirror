@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mirror</title>
+<style>
+:root{color-scheme:light;--bg:#f6f5f2;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#3f3e3b;--line:#d9d7d0;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--h0:#eaf1fb;--h1:#b7d0f2;--h2:#7fb0ea;--h3:#3f87dc;--h4:#1d5cad}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111110;--surface:#1a1a19;--ink:#fff;--ink2:#dcdbd2;--line:#3a3934;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--h0:#1c2634;--h1:#24405f;--h2:#2f5f97;--h3:#3f87dc;--h4:#8fc0f5}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:24px 20px 60px}h1{font-size:30px;margin:0}h2{font-size:22px;margin:32px 0 6px}h3{font-size:17px;margin:0 0 6px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-top:12px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.kpi b{display:block;font-size:32px;line-height:1.1}.note{color:var(--ink2);font-size:15px}
+table{border-collapse:collapse;width:100%;font-size:15px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+svg{display:block;width:100%;height:auto}svg text{fill:var(--ink2);font-size:14px}.legend span{margin-right:14px;font-size:15px}.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px}
+.q{border-left:4px solid var(--s1);padding-left:12px;margin:8px 0}
+</style></head><body><main>
+<h1>Mirror</h1>
+<p class="note" id="disc"></p>
+<div class="grid" id="kpis"></div>
+<h2>Day by day</h2><div class="card"><table id="days"></table></div>
+<h2>What you did, by day</h2><div class="card"><div class="legend" id="leg"></div><div id="kinds"></div></div>
+<h2>When you were active</h2><div class="card"><h3>Your messages by hour</h3><div id="heat"></div></div>
+<h2>Four numbers, and what each can and cannot tell you</h2><div id="idx"></div>
+<h2>Tokens</h2><div class="card"><table id="tok"></table><p class="note">Counts recorded in the tools' own logs. Not every tool records them.</p></div>
+<h2>Your notes on how well this matched</h2><div class="card"><table id="fb"></table></div>
+</main>
+<script>
+const D=/*__DATA__*/null;
+const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const f=v=>v===null||v===undefined?'n/a':v;
+$('disc').textContent=D.disclaimer;
+const days=D.days;
+const tot=k=>days.reduce((a,d)=>a+(d[k]||0),0);
+$('kpis').innerHTML=[[days.length,'active days'],[tot('prompts'),'prompts you sent'],[tot('ai_actions'),'AI actions'],[tot('active_minutes'),'active minutes']].map(k=>`<div class="card kpi"><b>${k[0]}</b>${k[1]}</div>`).join('');
+$('days').innerHTML='<tr><th>Day</th><th>Tools</th><th class="n">Prompts</th><th class="n">Active min</th><th class="n">Pushback</th><th class="n">Questions</th><th class="n">Approvals</th><th class="n">Quick approvals</th><th class="n">Actions/prompt</th></tr>'+days.map(d=>`<tr><td>${d.date}</td><td>${esc(d.tools.join(', '))}</td><td class="n">${d.prompts}</td><td class="n">${d.active_minutes}</td><td class="n">${f(d.idx.pushback_pct)}${d.idx.pushback_pct==null?'':'%'}</td><td class="n">${f(d.idx.question_pct)}${d.idx.question_pct==null?'':'%'}</td><td class="n">${f(d.idx.approval_pct)}${d.idx.approval_pct==null?'':'%'}</td><td class="n">${d.idx.approvals_after_writes?d.idx.quick_approvals+'/'+d.idx.approvals_after_writes:'-'}</td><td class="n">${f(d.idx.actions_per_prompt)}</td></tr>`).join('');
+const KS=['directive','question','approval','challenge','context'];const KL={directive:'Asked it to do something',question:'Asked a question',approval:'Agreed / go on',challenge:'Pushed back',context:'Shared context'};
+$('leg').innerHTML=KS.map((k,i)=>`<span><i style="background:var(--s${i+1})"></i>${KL[k]}</span>`).join('');
+(function(){const w=1000,lab=110,rh=34;const mx=Math.max(1,...days.map(d=>d.prompts));let s=`<svg viewBox="0 0 ${w} ${days.length*rh+4}">`;
+days.forEach((d,r)=>{let x=lab;s+=`<text x="0" y="${r*rh+22}">${d.date.slice(5)}</text>`;KS.forEach((k,i)=>{const v=d.kinds[k]||0;if(!v)return;const bw=(w-lab-50)*v/mx;s+=`<rect x="${x}" y="${r*rh+5}" width="${Math.max(bw-2,1)}" height="24" rx="3" fill="var(--s${i+1})"><title>${d.date} ${KL[k]}: ${v}</title></rect>`;x+=bw});s+=`<text x="${x+6}" y="${r*rh+22}">${d.prompts}</text>`});$('kinds').innerHTML=s+'</svg>'})();
+(function(){const hrs=[...Array(18).keys()].map(i=>i+6);const cw=52,ch=30,lab=80;let mx=1;days.forEach(d=>hrs.forEach(h=>{mx=Math.max(mx,d.hours_prompts[h]||0)}));
+const ramp=v=>v===0?'var(--h0)':v<=mx*.15?'var(--h1)':v<=mx*.4?'var(--h2)':v<=mx*.7?'var(--h3)':'var(--h4)';
+let s=`<svg viewBox="0 0 ${lab+hrs.length*cw} ${days.length*ch+28}">`;hrs.forEach((h,i)=>s+=`<text x="${lab+i*cw+cw/2}" y="14" text-anchor="middle">${h}</text>`);
+days.forEach((d,r)=>{s+=`<text x="0" y="${28+r*ch+20}">${d.date.slice(5)}</text>`;hrs.forEach((h,i)=>{const v=d.hours_prompts[h]||0;s+=`<rect x="${lab+i*cw+1}" y="${24+r*ch+1}" width="${cw-2}" height="${ch-2}" rx="4" fill="${ramp(v)}"><title>${d.date} ${h}h: ${v}</title></rect>`})});$('heat').innerHTML=s+'</svg>'})();
+$('idx').innerHTML=Object.values(D.indexes).map(e=>`<div class="card"><h3>${esc(e.title)}</h3><p>${esc(e.measures)}</p><p class="note"><b>Cannot tell you:</b> ${esc(e.cannot)}</p><div class="q"><b>Ask yourself:</b> ${esc(e.ask)}</div></div>`).join('');
+$('tok').innerHTML='<tr><th>Model</th><th class="n">Messages</th><th class="n">Output</th><th class="n">New input</th><th class="n">Cached</th></tr>'+Object.entries(D.tokens).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${v.messages}</td><td class="n">${v.output.toLocaleString()}</td><td class="n">${v.input.toLocaleString()}</td><td class="n">${v.cached.toLocaleString()}</td></tr>`).join('');
+$('fb').innerHTML=D.feedback.length?'<tr><th>Day</th><th>Did it match?</th><th>Your note</th></tr>'+D.feedback.map(x=>`<tr><td>${esc(x.day)}</td><td>${esc(x.match)}</td><td>${esc(x.note||'')}</td></tr>`).join(''):'<tr><td>None yet. Run <code>mirror day</code> and answer the last question.</td></tr>';
+</script></body></html>
