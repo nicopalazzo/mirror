@@ -50,7 +50,7 @@ If `py` is not found on Windows, try `python`. Use `--yes` after the command to 
 
 ## Nudges inside Claude Code (plugin)
 
-Optional. After a long run of messages without a question or pushback (30 by default), Mirror shows you one line. Only you see it. You answer with `/mirror:check` (a 2-minute check of the last answer), `/mirror:snooze`, or `/mirror:off`. It is off until you type `/mirror:on`, and it steps back on its own if you keep ignoring it.
+Optional. After a long run of messages without a question or pushback (30 by default), Mirror holds that one message and shows you one line in its place, in the chat. Claude never sees it. Claude Code frames it as "A hook blocked your prompt"; your message stays in the input box, so Enter sends it. You answer with `/mirror:check` (a 2-minute check of the last answer), `/mirror:snooze`, or `/mirror:off`. It is off until you type `/mirror:on`, and it steps back on its own if you keep ignoring it.
 
 Install (Claude Code 2.1 or newer):
 

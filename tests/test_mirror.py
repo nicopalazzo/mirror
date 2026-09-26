@@ -371,6 +371,18 @@ class Nudge(unittest.TestCase):
         self.assertEqual(self.n.hook_main("not json"), "")
         self.assertEqual(self.n.hook_main('{"user_prompt": null}'), json.dumps({"systemMessage": self.n.INTRO}))
 
+    def test_hook_reads_both_prompt_keys_and_blocks_on_nudge(self):
+        self.n.respond("on", now=self.t0)
+        st = self.n.load(); st["threshold"] = 3; self.n.save(st)
+        outs = [self.n.hook_main(json.dumps({"session_id": "a", "prompt": "ok"})) for _ in range(3)]
+        self.assertEqual(outs[:2], ["", ""])
+        out = json.loads(outs[2])
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("Mirror, not an error", out["reason"])
+        st = self.n.load(); st["last_nudge"] = None; self.n.save(st)
+        outs = [self.n.hook_main(json.dumps({"session_id": "b", "user_prompt": "ok"})) for _ in range(3)]
+        self.assertEqual(json.loads(outs[2])["decision"], "block")
+
 
 class ClaudePlugin(unittest.TestCase):
     P = ROOT / "plugins" / "mirror-claude"

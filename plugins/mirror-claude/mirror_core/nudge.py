@@ -8,7 +8,10 @@ Design (see THREAT-MODEL.md and the JITAI framework, Nahum-Shani et al. 2018):
   outside the cooldown, and not snoozed. Then the streak resets.
 - A nudge left unanswered counts as ignored; each ignored nudge doubles the cooldown (max 8x).
   Three ignored in a row pauses Mirror for a day and says so once ("provide nothing").
-- Any error: exit silently. The hook must never block or slow the user's prompt.
+- A nudge blocks that one prompt and shows its line where the user is typing; the prompt stays in
+  the input box, so Enter sends it. Claude Code does not display systemMessage from this hook
+  (tested 26 Sep 2026, v2.1.283, Desktop app and CLI), so blocking is the only direct channel.
+- Any error: exit silently. A broken hook must never block or slow the user's prompt.
 """
 from __future__ import annotations
 import json
@@ -35,9 +38,9 @@ MAX_LOG = 300
 MAX_SESSIONS = 50
 
 COPY = [
-    "Mirror: {n} messages in this session without a question or pushback. Two minutes to check the last answer? /mirror:check · /mirror:snooze · /mirror:off",
-    "Mirror: you've gone {n} messages without questioning the AI. Want a quick check before you use its last answer? /mirror:check · /mirror:snooze · /mirror:off",
-    "Mirror: {n} messages, no question or pushback so far. Worth a 2-minute look at what you're about to rely on? /mirror:check · /mirror:snooze · /mirror:off",
+    "🪞 Mirror, not an error. {n} messages without a question. Check Claude's last answer before you rely on it. Press Enter to send anyway · /mirror:snooze · /mirror:off",
+    "🪞 Mirror, not an error. {n} messages without a question or pushback. Worth a look at Claude's last answer first? Press Enter to send anyway · /mirror:snooze · /mirror:off",
+    "🪞 Mirror, not an error. {n} messages in a row that accept what Claude said. Check before you build on it. Press Enter to send anyway · /mirror:snooze · /mirror:off",
 ]
 INTRO = ("Mirror is installed. Nudges are off until you turn them on with /mirror:on. "
          "Mirror only counts your messages here; it never stores what you write or sends anything anywhere.")
@@ -188,12 +191,16 @@ def status():
 
 
 def hook_main(stdin_text):
-    """Entry point for the UserPromptSubmit hook. Prints JSON with systemMessage or nothing."""
+    """Entry point for the UserPromptSubmit hook. A nudge blocks the prompt with its line as the reason;
+    the intro and step-back lines go out as systemMessage. Anything else prints nothing."""
     try:
         data = json.loads(stdin_text or "{}")
-        msg = on_prompt(data.get("session_id"), data.get("user_prompt", ""))
-        if msg:
+        # Claude Code sends "prompt"; the docs name it "user_prompt". Accept both.
+        msg = on_prompt(data.get("session_id"), data.get("prompt") or data.get("user_prompt") or "")
+        if msg in (INTRO, STEP_BACK):
             return json.dumps({"systemMessage": msg})
+        if msg:
+            return json.dumps({"decision": "block", "reason": msg})
     except Exception:  # never break the user's prompt
         return ""
     return ""
