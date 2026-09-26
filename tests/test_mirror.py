@@ -222,14 +222,41 @@ class Launchers(unittest.TestCase):
     NETWORK_WORDS = ("curl", "wget", "invoke-webrequest", "bitsadmin", "certutil", "powershell", "ssh ", "scp ", "ftp", "nc ", "http://")
 
     def test_launchers_exist_and_do_not_fetch_anything(self):
-        for name in ("Mirror.command", "Mirror.bat"):
+        for name in ("Mirror.command", "Mirror.bat", "Mirror Report.command", "Mirror Report.bat"):
             text = (ROOT / name).read_text(encoding="utf-8").lower()
             for w in self.NETWORK_WORDS:
                 self.assertNotIn(w, text, name + " contains " + w)
             self.assertIn("mirror.py", text)
 
     def test_command_file_is_executable_and_bat_is_crlf(self):
-        if os.name != "nt":
-            self.assertTrue(os.access(ROOT / "Mirror.command", os.X_OK))
-        self.assertIn(b"\r\n", (ROOT / "Mirror.bat").read_bytes())
-        self.assertTrue((ROOT / "Mirror.command").read_text(encoding="utf-8").startswith("#!/bin/bash"))
+        for n in ("Mirror.command", "Mirror Report.command"):
+            if os.name != "nt":
+                self.assertTrue(os.access(ROOT / n, os.X_OK), n)
+            self.assertTrue((ROOT / n).read_text(encoding="utf-8").startswith("#!/bin/bash"))
+        for n in ("Mirror.bat", "Mirror Report.bat"):
+            self.assertIn(b"\r\n", (ROOT / n).read_bytes(), n)
+
+
+class ReportsFolder(Base):
+    def test_default_is_visible_home_folder_unless_home_overridden(self):
+        from mirror_core import store
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("MIRROR_HOME", None)
+            os.environ.pop("MIRROR_REPORTS", None)
+            self.assertEqual(store.reports_dir(), Path.home() / "Mirror")
+        with mock.patch.dict(os.environ, {"MIRROR_HOME": str(self.root / "h")}):
+            os.environ.pop("MIRROR_REPORTS", None)
+            self.assertEqual(store.reports_dir(), self.root / "h" / "reports")
+        self.assertNotIn(Path.home() / "Documents", [store.reports_dir()])
+
+    def test_forget_removes_only_mirror_reports(self):
+        rep = self.root / "visible"
+        rep.mkdir()
+        (rep / "mirror-2026-01-01.html").write_text("x", encoding="utf-8")
+        (rep / "my-own-notes.txt").write_text("keep me", encoding="utf-8")
+        env = dict(self.env, MIRROR_REPORTS=str(rep))
+        run_cli(["day", "--yes", "--no-feedback"], env)
+        run_cli(["forget"], env)
+        self.assertFalse((rep / "mirror-2026-01-01.html").exists())
+        self.assertTrue((rep / "my-own-notes.txt").exists())
+        self.assertFalse((self.root / "home").exists())

@@ -66,7 +66,8 @@ def _consent(args, roots):
     print("  It will read:  " + str(claude_root / "projects") + "  (Claude Code sessions)")
     print("                 " + str(codex_root / "sessions") + "  (Codex sessions)")
     print("  It never opens anything else in those folders (no credentials, no settings).")
-    print("  It never sends anything anywhere. It writes only to: " + str(store.home()))
+    print("  It never sends anything anywhere. It writes only to: " + str(store.home()) + "  (settings, your notes)")
+    print("                                                        " + str(store.reports_dir()) + "  (report pages)")
     print("  Remove everything any time with:  mirror.py forget")
     if args.yes:
         ok = True
@@ -141,9 +142,10 @@ def cmd_report(args):
     from mirror_core.render_html import build
     turns, actions, tokens, missing, roots = _load(args)
     all_days = by_day(turns, actions, args.quick_seconds)
-    out = store.home() / "reports" / f"mirror-{date.today().isoformat()}.html"
+    out = store.reports_dir() / f"mirror-{date.today().isoformat()}.html"
     build(all_days, store.read_feedback(), tokens, out)
-    print("Report written: " + str(out))
+    print("Report saved in your Mirror folder: " + str(out))
+    print("Open it again any time with the 'Mirror Report' launcher, or: python3 mirror.py report --open")
     if args.open:
         import webbrowser
         webbrowser.open(out.as_uri())

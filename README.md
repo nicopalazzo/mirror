@@ -12,7 +12,7 @@ It is an **exploration**, not a test, a score or a diagnosis. The numbers are qu
 - **First run asks for permission** and lists exactly what it will read.
 - **Your messages are not kept, not even in memory.** Each one is labelled by simple rules the moment it is read and only its type and length survive. Reports and the share card contain numbers only, no message text. (The report page does show your own notes, so send the share card, not the report file.)
 - **Read the [threat model](THREAT-MODEL.md)** for who Mirror protects you from, how to check each protection, and what it does not cover.
-- **It writes only to `~/.mirror`.** Delete everything with `mirror.py forget`.
+- **It writes only to two folders:** `~/.mirror` (settings and your notes) and `~/Mirror` (report pages, a visible folder chosen so iCloud and OneDrive do not sync it by default). Delete everything with `mirror.py forget`; it removes only Mirror's own report files, never other files you keep in `~/Mirror`.
 - Reading the code takes ten minutes. Start with `mirror_core/readers.py`.
 
 ## Easiest: double-click
@@ -20,6 +20,7 @@ It is an **exploration**, not a test, a score or a diagnosis. The numbers are qu
 1. Get the folder onto your computer (download the zip from GitHub and unzip it, or `git clone`).
 2. **Mac:** double-click **`Mirror.command`**. **Windows:** double-click **`Mirror.bat`**.
 3. A small window opens. The first time, it lists what Mirror will read and asks `y/N`. It then shows how today went, asks whether that matched your day, and opens the report in your browser.
+4. **To open the report again later,** double-click **`Mirror Report.command`** (Mac) or **`Mirror Report.bat`** (Windows). It rebuilds the report and opens it without asking anything. Reports are also kept in a normal folder called **`Mirror`** in your home folder, so you can find them in Finder or Explorer.
 
 The files are not signed, so your computer will warn you the first time:
 - **Mac:** "cannot be opened because it is from an unidentified developer". Right-click the file, choose **Open**, then **Open** again. If that option is missing: System Settings, Privacy & Security, scroll down, **Open Anyway**. A zip download can also lose the file's "runnable" flag; if double-clicking does nothing, use the terminal method below or `git clone`.

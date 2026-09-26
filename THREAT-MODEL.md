@@ -17,7 +17,7 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | **The author or a later contributor** | The code starts sending data, or reads more than it should | No networking libraries or command-running calls are allowed in the source. A test scans every file and fails if one appears. |
 | **Someone tampering with the copy you receive** | A modified Mirror reads or sends more | The code is short and readable (start with `mirror_core/readers.py`). Compare against the GitHub repo. |
 | **Your AI provider**, when you run Mirror through the `mirror` skill | It sees what Mirror prints in the chat | Mirror prints numbers and questions only, never your messages. The skill asks your permission first and offers a terminal alternative. |
-| **Other apps or people on the computer** | They read what Mirror stored | Mirror stores only numbers and your notes in one folder, `~/.mirror`. `forget` deletes it. Malware that already has your user rights could read your logs directly, so Mirror adds little to that risk. |
+| **Other apps or people on the computer** | They read what Mirror stored | Mirror stores numbers and your notes in `~/.mirror`, and report pages in `~/Mirror`. `forget` deletes both (only Mirror's own `mirror-*.html` files in `~/Mirror`). Malware that already has your user rights could read your logs directly, so Mirror adds little to that risk. |
 | **Whoever you share numbers with** | Numbers identify you or reveal habits | The share card holds numbers only, notes are excluded unless you add `--include-note`, and Mirror sends nothing by itself. Sending is your decision. |
 | **Your employer or a client** | Your logs contain their confidential information | Mirror reads logs locally and keeps no message text. Check your employer's rules before running it on a work computer. |
 
@@ -41,6 +41,7 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 - **Malware or another user with your rights** can read the logs without Mirror.
 - **Windows is covered by automated tests, not by an OS-level network block.** The macOS command above is the only enforcement check we have; on Windows and Linux you rely on the code and the tests.
 - **Labels are rough** (about 70% agreement on one person's messages). Do not use Mirror's output to judge a person, and do not let anyone else use it to judge you.
+- **Cloud sync.** `~/Mirror` is deliberately outside Documents and Desktop, which iCloud and OneDrive often sync. If you have set up sync for your whole home folder, the reports will sync too.
 - **The report page contains your notes** (it shows them back to you). Send the share card, not the report file.
 - **The launchers are unsigned.** Your computer warns you the first time; that is expected and the only way to know they are unmodified is to compare with the GitHub repo.
 - **The share card is your choice.** If you paste it into a chat or send it, whoever receives it sees those numbers.

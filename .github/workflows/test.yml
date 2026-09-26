@@ -23,6 +23,7 @@ jobs:
         run: |
           python tests/make_fixtures.py "$RUNNER_TEMP/fx"
           MIRROR_HOME="$RUNNER_TEMP/fx/home" MIRROR_CLAUDE_DIR="$RUNNER_TEMP/fx/claude" MIRROR_CODEX_DIR="$RUNNER_TEMP/fx/codex" ./Mirror.command --test
+          ./"Mirror Report.command" --test
       - name: Launcher smoke test (Windows)
         if: runner.os == 'Windows'
         shell: cmd
@@ -32,3 +33,4 @@ jobs:
           set MIRROR_CLAUDE_DIR=%RUNNER_TEMP%\fx\claude
           set MIRROR_CODEX_DIR=%RUNNER_TEMP%\fx\codex
           call Mirror.bat --test
+          call "Mirror Report.bat" --test
