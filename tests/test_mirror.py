@@ -285,3 +285,111 @@ class ReportsFolder(Base):
         self.assertFalse((rep / "mirror-2026-01-01.html").exists())
         self.assertTrue((rep / "my-own-notes.txt").exists())
         self.assertFalse((self.root / "home").exists())
+
+
+class Nudge(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"MIRROR_HOME": self.tmp.name})
+        self.env.start()
+        from mirror_core import nudge
+        self.n = nudge
+        from datetime import datetime, timezone
+        self.t0 = datetime(2026, 9, 28, 9, 0, tzinfo=timezone.utc)
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def run_prompts(self, texts, start, step_min=1, sid="s"):
+        out = []
+        for i, t in enumerate(texts):
+            out.append(self.n.on_prompt(sid, t, now=start + timedelta(minutes=i * step_min)))
+        return out
+
+    def test_off_by_default_intro_once(self):
+        out = self.run_prompts(["ok"] * 40, self.t0)
+        self.assertEqual(out[0], self.n.INTRO)
+        self.assertEqual([m for m in out[1:] if m], [])
+
+    def test_fires_at_threshold_and_resets(self):
+        self.n.respond("on", now=self.t0)
+        out = self.run_prompts(["go ahead"] * 30, self.t0)
+        self.assertIn("30 messages", out[29])
+        self.assertEqual([m for m in out[:29] if m], [])
+
+    def test_question_or_pushback_resets_streak(self):
+        self.n.respond("on", now=self.t0)
+        out = self.run_prompts(["ok"] * 20 + ["why did you skip the tests?"] + ["ok"] * 20, self.t0)
+        self.assertEqual([m for m in out if m], [])
+
+    def test_commands_and_pastes_not_counted(self):
+        self.n.respond("on", now=self.t0)
+        out = self.run_prompts(["/model", "/mirror:status", "x" * 3000] * 20, self.t0)
+        self.assertEqual([m for m in out if m], [])
+
+    def test_cooldown_and_snooze(self):
+        self.n.respond("on", now=self.t0)
+        out = self.run_prompts(["ok"] * 60, self.t0)  # 60 minutes: second streak inside the 2 h cooldown
+        self.assertEqual(len([m for m in out if m]), 1)
+        self.n.respond("snooze", minutes=600, now=self.t0 + timedelta(hours=3))
+        out = self.run_prompts(["ok"] * 40, self.t0 + timedelta(hours=3))
+        self.assertEqual([m for m in out if m], [])
+
+    def test_off_stops_everything(self):
+        self.n.respond("on", now=self.t0)
+        self.n.respond("off", now=self.t0)
+        out = self.run_prompts(["ok"] * 40, self.t0)
+        self.assertEqual([m for m in out if m], [])
+
+    def test_ignored_nudges_back_off_then_step_back(self):
+        self.n.respond("on", now=self.t0)
+        msgs = []
+        t = self.t0
+        for _ in range(4):
+            out = self.run_prompts(["ok"] * 30, t)
+            msgs += [m for m in out if m]
+            t += timedelta(hours=20)  # beyond any cooldown multiple
+        self.assertEqual(msgs[-1], self.n.STEP_BACK)
+        out = self.run_prompts(["ok"] * 30, t)
+        self.assertEqual([m for m in out if m], [])  # quiet for a day
+
+    def test_answering_resets_ignored_count(self):
+        self.n.respond("on", now=self.t0)
+        self.run_prompts(["ok"] * 30, self.t0)
+        self.n.respond("check", now=self.t0 + timedelta(minutes=31))
+        self.assertEqual(self.n.load()["ignored_in_row"], 0)
+        self.assertIn("check 1", self.n.status())
+
+    def test_state_holds_no_prompt_text(self):
+        self.n.respond("on", now=self.t0)
+        self.run_prompts(["SECRET CLIENT NAME ok"] * 35 + ["why SECRET?"], self.t0)
+        raw = (Path(self.tmp.name) / "nudge.json").read_text(encoding="utf-8")
+        self.assertNotIn("SECRET", raw)
+
+    def test_hook_never_raises(self):
+        self.assertEqual(self.n.hook_main("not json"), "")
+        self.assertEqual(self.n.hook_main('{"prompt": null}'), json.dumps({"systemMessage": self.n.INTRO}))
+
+
+class ClaudePlugin(unittest.TestCase):
+    P = ROOT / "plugins" / "mirror-claude"
+
+    def test_engine_copy_matches_source(self):
+        for f in list((ROOT / "mirror_core").glob("*.py")) + list((ROOT / "mirror_core").glob("*.html")) + [ROOT / "mirror.py"]:
+            rel = f.relative_to(ROOT)
+            self.assertEqual(f.read_bytes(), (self.P / rel).read_bytes(), f"{rel} is stale: run scripts/build_plugins.py")
+
+    def test_manifest_hook_and_skills(self):
+        man = json.loads((self.P / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(man["name"], "mirror")
+        hooks = json.loads((self.P / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]
+        self.assertEqual(list(hooks), ["UserPromptSubmit"])
+        h = hooks["UserPromptSubmit"][0]["hooks"][0]
+        self.assertNotIn("async", h)  # async hooks send systemMessage to Claude, not the user
+        self.assertIn("nudge-hook", h["command"])
+        for skill in ("check", "on", "off", "snooze", "status"):
+            text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+            self.assertIn("disable-model-invocation: true", text, skill)
+        market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+        self.assertEqual(market["plugins"][0]["name"], man["name"])

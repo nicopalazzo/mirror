@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/mirror.py\" nudge-hook",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

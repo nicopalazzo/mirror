@@ -34,6 +34,22 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | Works with the network switched off | On macOS: `sandbox-exec -p '(version 1)(allow default)(deny network*)' python3 mirror.py day --yes` |
 | First-run consent, and full removal | `mirror.py forget`; test `test_forget` |
 
+## The nudge plugin (Claude Code)
+
+| Protection | How to verify |
+|---|---|
+| The hook reads only the prompt Claude Code passes it; it opens no log file | `mirror_core/nudge.py`, function `on_prompt` |
+| The prompt is labelled and dropped; `~/.mirror/nudge.json` holds counts, times and session ids only | Test `test_state_holds_no_prompt_text` |
+| Off until you type `/mirror:on`; `/mirror:off` stops it | Tests `test_off_by_default_intro_once`, `test_off_stops_everything` |
+| Claude cannot turn nudges on or off, snooze or start a check by itself | Every plugin skill sets `disable-model-invocation: true`; test `test_manifest_hook_and_skills` |
+| The nudge line is shown to you as a `systemMessage`; the hook runs synchronously because an async hook's message goes to Claude instead | Same test checks the hook is not async |
+| A broken hook never blocks your prompt | Test `test_hook_never_raises`; 5-second timeout in `hooks.json` |
+| Backs off when ignored, and steps back for a day after 3 ignored nudges | Test `test_ignored_nudges_back_off_then_step_back` |
+
+Not verified yet: whether Claude also sees the `systemMessage` line (the docs say it is shown to the user and do not say it is added to context). Check in a live session before relying on it.
+
+A hook runs with your user rights outside Claude Code's sandbox, on every prompt. Installing from a marketplace added as a **local folder** runs the files in that folder as they are; installing from the GitHub marketplace runs a cached, versioned copy that only changes when you update.
+
 ## What Mirror does not protect
 
 - **Your logs stay on disk as the AI tools wrote them.** Mirror does not redact, move or delete them. Claude Code removes old sessions on its own schedule.

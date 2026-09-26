@@ -48,6 +48,19 @@ You need Python 3.8+ (check with `python3 --version`, or `py --version` on Windo
 
 If `py` is not found on Windows, try `python`. Use `--yes` after the command to accept the first-run notice without being asked.
 
+## Nudges inside Claude Code (plugin)
+
+Optional. After a long run of messages without a question or pushback (30 by default), Mirror shows you one line. Only you see it. You answer with `/mirror:check` (a 2-minute check of the last answer), `/mirror:snooze`, or `/mirror:off`. It is off until you type `/mirror:on`, and it steps back on its own if you keep ignoring it.
+
+Install (Claude Code 2.1 or newer):
+
+```
+claude plugin marketplace add nicopalazzo/mirror
+claude plugin install mirror@mirror
+```
+
+Then start a new session and type `/mirror:on`. `/mirror:status` shows how you have answered. Remove with `claude plugin uninstall mirror@mirror`. Codex and Cursor plugins are planned; they are packaged separately because each tool loads hooks differently.
+
 ## Use it from Claude or Codex (no terminal typing)
 
 If you already work in Claude Code or Codex, install Mirror as a skill and just ask "how did my day go with AI?" (or type `/mirror`).

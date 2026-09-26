@@ -1,0 +1,12 @@
+{
+  "name": "mirror",
+  "description": "Mirror: a local look at how you work with AI",
+  "owner": { "name": "Nicolas Palazzo" },
+  "plugins": [
+    {
+      "name": "mirror",
+      "source": "./plugins/mirror-claude",
+      "description": "Local reflection on how you work with AI, with an optional nudge after a long run without questioning the AI"
+    }
+  ]
+}
