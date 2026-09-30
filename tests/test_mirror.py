@@ -56,6 +56,11 @@ class Classifier(unittest.TestCase):
             "What is the difference between a cookie and a token?": "question", "Comment ça marche ?": "question",
             "/model": "meta", "<command-name>/model</command-name>": "meta",
             "I think we should keep the design simple.": "context",
+            # real misses from the 29 Sep live demo
+            "Ok, maybe change this": "challenge", "Then it's not ok, I want you to explain why": "challenge",
+            "ok but that's wrong": "challenge", "c'est pas ok, explique pourquoi": "challenge",
+            "ok go": "approval", "ok no problem": "approval",
+            "Maybe we can change the following items": "challenge",
         }
         for text, want in cases.items():
             self.assertEqual(classify(text), want, text)
@@ -361,6 +366,33 @@ class Nudge(unittest.TestCase):
         self.assertEqual(self.n.load()["ignored_in_row"], 0)
         self.assertIn("check 1", self.n.status())
 
+    def test_pushback_after_nudge_counts_as_acted(self):
+        self.n.respond("on", now=self.t0)
+        self.run_prompts(["ok"] * 30, self.t0)  # nudge on the 30th
+        st = self.n.load(); st["ignored_in_row"] = 2; self.n.save(st)
+        self.n.on_prompt("s", "Then it's not ok, explain why", now=self.t0 + timedelta(minutes=31))
+        st = self.n.load()
+        self.assertFalse(st["pending"])
+        self.assertEqual(st["ignored_in_row"], 0)
+        self.assertIn("acted (asked or pushed back) 1", self.n.status())
+
+    def test_sending_anyway_counts_as_ignored(self):
+        self.n.respond("on", now=self.t0)
+        self.run_prompts(["ok"] * 30, self.t0)
+        self.n.on_prompt("s", "ok", now=self.t0 + timedelta(minutes=31))
+        st = self.n.load()
+        self.assertFalse(st["pending"])
+        self.assertEqual(st["ignored_in_row"], 1)
+        self.assertIn("sent anyway 1", self.n.status())
+
+    def test_new_instruction_after_nudge_counts_as_edited(self):
+        self.n.respond("on", now=self.t0)
+        self.run_prompts(["ok"] * 30, self.t0)
+        st = self.n.load(); st["ignored_in_row"] = 2; self.n.save(st)
+        self.n.on_prompt("s", "Now write the tests for the payment step", now=self.t0 + timedelta(minutes=31))
+        self.assertEqual(self.n.load()["ignored_in_row"], 0)
+        self.assertIn("edited 1", self.n.status())
+
     def test_state_holds_no_prompt_text(self):
         self.n.respond("on", now=self.t0)
         self.run_prompts(["SECRET CLIENT NAME ok"] * 35 + ["why SECRET?"], self.t0)
@@ -378,7 +410,7 @@ class Nudge(unittest.TestCase):
         self.assertEqual(outs[:2], ["", ""])
         out = json.loads(outs[2])
         self.assertEqual(out["decision"], "block")
-        self.assertIn("Mirror, not an error", out["reason"])
+        self.assertIn("Mirror held this message", out["reason"])
         st = self.n.load(); st["last_nudge"] = None; self.n.save(st)
         outs = [self.n.hook_main(json.dumps({"session_id": "b", "user_prompt": "ok"})) for _ in range(3)]
         self.assertEqual(json.loads(outs[2])["decision"], "block")

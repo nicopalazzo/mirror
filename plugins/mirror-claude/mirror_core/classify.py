@@ -26,6 +26,8 @@ _CHALLENGE = re.compile(
     r"why didn'?t you|why did you|you didn'?t|you missed|you forgot|you skipped|doesn'?t work|not working|still (?:not|doesn'?t)|"
     r"\bbroken\b|mistake|are you sure|really\?|no source|which source|where did you get|prove it|double[- ]check|"
     r"not what i (?:asked|said|wanted)|i said|i already|hallucinat|"
+    r"(?:it'?s|this is|that is|is) not ok(?:ay)?|\bnot ok(?:ay)?\b|isn'?t ok(?:ay)?|explain why|maybe (?:(?:we|you|i) (?:can|could|should) )?(?:change|fix|redo|rethink|remove)|"
+    r"(?:c'est |c’est )?pas ok|explique(?:-moi)? pourquoi|peut-être (?:changer|modifier|corriger)|"
     r"pas d'accord|pas d’accord|c'est faux|c’est faux|\bfaux\b|ça ne marche pas|ca ne marche pas|ne marche pas|"
     r"tu as oublié|tu n'as pas|tu n’as pas|pourquoi tu|pourquoi as-tu|es-tu sûr|t'es sûr|t’es sûr|tu es sûr|"
     r"pas ce que j|je t'ai dit|je t’ai dit|c'est pas ça|c’est pas ça|tu te trompes|erreur|"
@@ -37,6 +39,8 @@ _CHALLENGE = re.compile(
     re.I,
 )
 
+# "ok, maybe change this" / "ok but that's wrong": an ok-word followed by pushback is not an approval.
+_PUSH_TAIL = re.compile(r"^\s*\S+[\s,.!:;\-]+(?:but|mais|maybe|peut-être|not|pas|except|sauf)\b", re.I)
 _FILLER = re.compile(r"^\s*(?:(?:ok(?:ay)?|yes|yep|great|good|nice|perfect|so|well|and|now|then|also|alright|right|oui|bon|alors|et|ensuite|du coup)\b[\s,.!:;\-]*)+", re.I)
 _WANT = re.compile(r"^\s*(?:i want(?: you to)?|i need(?: you to)?|you can|you should|we can|we should|we will|let'?s|je veux|j'aimerais|je voudrais|tu peux|on peut|on va)\b", re.I)
 _WONDER = re.compile(r"(i was wondering|i wonder|i'?m curious|what about|how (?:could|would|does|do)|should (?:i|we|the)|is it worth|do you think|je me demande|est-ce que|qu'en penses|que penses)", re.I)
@@ -64,7 +68,7 @@ def classify(text: str) -> str:
         return "meta"
     if t.startswith("<pasted_content") or len(t) > 1500 or t.count("\n") >= 12:
         return "pasted"
-    if len(t) <= 60 and _APPROVAL.match(t) and "?" not in t:
+    if len(t) <= 60 and _APPROVAL.match(t) and "?" not in t and not _PUSH_TAIL.search(t):
         tail = _FILLER.sub("", t)
         if not (tail and (_VERB.match(tail) or _WANT.match(tail)) and not re.match(r"(run |do |apply )?step \d", tail, re.I)):
             return "approval"

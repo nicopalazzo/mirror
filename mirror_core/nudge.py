@@ -6,7 +6,11 @@ Design (see THREAT-MODEL.md and the JITAI framework, Nahum-Shani et al. 2018):
 - Off until the user opts in (/mirror:on). One intro line on first sight.
 - Fires when the streak of messages without a question or pushback reaches the threshold,
   outside the cooldown, and not snoozed. Then the streak resets.
-- A nudge left unanswered counts as ignored; each ignored nudge doubles the cooldown (max 8x).
+- The first counted message after a nudge is its answer: a question or pushback is "acted",
+  any other non-approval is "edited" (the user changed the message), and a plain approval is
+  "sent_anyway", the only answer that counts as ignored (29 Sep 2026: before this, pushing back
+  after a nudge was logged as ignored). A nudge with no message after it counts as ignored too.
+  Each ignored nudge doubles the cooldown (max 8x).
   Three ignored in a row pauses Mirror for a day and says so once ("provide nothing").
 - A nudge blocks that one prompt and shows its line where the user is typing; the prompt stays in
   the input box, so Enter sends it. Claude Code does not display systemMessage from this hook
@@ -37,15 +41,15 @@ COUNT_KINDS = ("directive", "approval", "context")
 MAX_LOG = 300
 MAX_SESSIONS = 50
 
+CONTROLS = "Enter: send anyway · /mirror:snooze: pause nudges · /mirror:off: turn off"
 COPY = [
-    "🪞 Mirror, not an error. {n} messages without a question. Check Claude's last answer before you rely on it. Press Enter to send anyway · /mirror:snooze · /mirror:off",
-    "🪞 Mirror, not an error. {n} messages without a question or pushback. Worth a look at Claude's last answer first? Press Enter to send anyway · /mirror:snooze · /mirror:off",
-    "🪞 Mirror, not an error. {n} messages in a row that accept what Claude said. Check before you build on it. Press Enter to send anyway · /mirror:snooze · /mirror:off",
+    "Mirror held this message. Nothing is broken. {n} messages without a question. Review Claude's last answer?\n" + CONTROLS,
+    "Mirror held this message. Nothing is broken. {n} messages without a question or pushback. Review Claude's last answer?\n" + CONTROLS,
 ]
-INTRO = ("Mirror is installed. Nudges are off until you turn them on with /mirror:on. "
-         "Mirror only counts your messages here; it never stores what you write or sends anything anywhere.")
-STEP_BACK = ("Mirror: the last 3 nudges went unanswered, so Mirror is stepping back for a day. "
-             "/mirror:on resumes, /mirror:off stops them.")
+INTRO = ("Mirror nudges are off. Type /mirror:on to turn them on. "
+         "Mirror counts your messages but never stores or sends what you write.")
+STEP_BACK = ("No answer to the last 3 nudges, so Mirror will stay quiet for a day.\n"
+             "/mirror:on: resume · /mirror:off: turn off")
 
 
 def _now():
@@ -96,8 +100,10 @@ def _close_pending(st, response):
     if st.get("pending"):
         st["pending"] = False
         _log(st, "response", response=response)
-        if response in ("check", "snooze", "off"):
+        if response in ("check", "snooze", "off", "acted", "edited"):
             st["ignored_in_row"] = 0
+        elif response == "sent_anyway":
+            st["ignored_in_row"] = st.get("ignored_in_row", 0) + 1
 
 
 def on_prompt(session_id, prompt, now=None):
@@ -116,6 +122,8 @@ def on_prompt(session_id, prompt, now=None):
         return None
     if kind not in RESET_KINDS + COUNT_KINDS:
         return None  # commands, pasted text: not counted
+    if st.get("pending"):
+        _close_pending(st, "acted" if kind in RESET_KINDS else "sent_anyway" if kind == "approval" else "edited")
     sess = st["sessions"].setdefault(session_id or "default", {"streak": 0})
     sess["seen"] = _iso(now)
     sess["streak"] = 0 if kind in RESET_KINDS else sess.get("streak", 0) + 1
@@ -185,7 +193,8 @@ def status():
         + (f" x{2 ** min(st['ignored_in_row'], 3)} (after ignored nudges)" if st.get("ignored_in_row") else ""),
         f"Snoozed until: {st['snooze_until'] or '-'}",
         f"Nudges shown: {len(nudges)}; answered with check {responses.count('check')}, snooze {responses.count('snooze')}, "
-        f"off {responses.count('off')}; ignored {responses.count('ignored')}",
+        f"off {responses.count('off')}; acted (asked or pushed back) {responses.count('acted')}; "
+        f"edited {responses.count('edited')}; sent anyway {responses.count('sent_anyway')}; ignored {responses.count('ignored')}",
     ]
     return "\n".join(lines)
 
