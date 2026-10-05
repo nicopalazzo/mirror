@@ -85,7 +85,7 @@ At the end of `day`, Mirror asks whether the numbers match how the day felt. Tha
 
 ## Limits, said plainly
 
-- **Message labels are rules, not understanding.** They work in English and French and are wrong some of the time. On one person's 93 hand-labelled messages the rules agreed about 70% of the time (a small check, one labeller). Treat the split as rough.
+- **Message labels are rules, not understanding.** They work in English and French and are wrong some of the time. On one person's 154 hand-labelled messages, the rules matched the exact label 58% of the time, and got the decision the nudge uses (question or pushback vs anything else) right 86% of the time (a small check, one labeller). Treat the split as rough.
 - **Only tools whose logs Mirror can read are counted:** Claude Code, Codex and Cursor. Web chats (claude.ai, chatgpt.com) leave no local log.
 - **Cursor has no reply times.** Its logs put a time only on your messages, so "quick approvals" cannot be measured for Cursor and active time is approximate. The report says so. I have checked the Cursor reader against one person's Mac logs only; the folder is `~/.cursor` on every system, but Windows layouts are unverified.
 - **Claude Code deletes old sessions after about 30 days** unless you raise `cleanupPeriodDays` in its settings, so history is short.
