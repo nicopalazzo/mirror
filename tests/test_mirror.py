@@ -120,7 +120,7 @@ class Indexes(Base):
 class Security(Base):
     def test_no_network_or_exec_code(self):
         offenders = []
-        for py in list((ROOT / "mirror_core").glob("*.py")) + [ROOT / "mirror.py"]:
+        for py in list((ROOT / "mirror_core").glob("*.py")) + list((ROOT / "scripts").glob("*.py")) + [ROOT / "mirror.py"]:
             tree = ast.parse(py.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 mods = []
@@ -414,6 +414,106 @@ class Nudge(unittest.TestCase):
         st = self.n.load(); st["last_nudge"] = None; self.n.save(st)
         outs = [self.n.hook_main(json.dumps({"session_id": "b", "user_prompt": "ok"})) for _ in range(3)]
         self.assertEqual(json.loads(outs[2])["decision"], "block")
+
+
+class NudgeExperiment(Nudge):
+    """Ratio rule and hold-back arm (5 Oct 2026)."""
+
+    def on(self, **settings):
+        self.n.respond("on", now=self.t0)
+        for k, v in settings.items():
+            self.assertNotIn("must be", self.n.configure(k, v))
+
+    def test_holdback_withholds_and_logs(self):
+        self.on(holdback="0.9", threshold="5")
+        with mock.patch.object(self.n, "_rand", lambda: 0.0):
+            out = self.run_prompts(["ok"] * 5, self.t0)
+        self.assertEqual([m for m in out if m], [])
+        st = self.n.load()
+        self.assertEqual([e["event"] for e in st["log"]][-1], "withheld")
+        self.assertEqual(st["pending_arm"], "held")
+        self.assertIsNotNone(st["last_nudge"])  # held-back moments start the cooldown too
+
+    def test_held_back_cooldown_matches_shown(self):
+        self.on(holdback="0.9", threshold="5", cooldown="45")
+        with mock.patch.object(self.n, "_rand", lambda: 0.0):
+            out = self.run_prompts(["ok"] * 10, self.t0)  # second streak inside 45 min
+        self.assertEqual(len([e for e in self.n.load()["log"] if e["event"] == "withheld"]), 1)
+
+    def test_sent_anyway_after_held_back_is_not_ignored(self):
+        self.on(holdback="0.9", threshold="5")
+        with mock.patch.object(self.n, "_rand", lambda: 0.0):
+            self.run_prompts(["ok"] * 5, self.t0)
+            self.n.on_prompt("s", "ok", now=self.t0 + timedelta(minutes=6))
+        st = self.n.load()
+        self.assertEqual(st["ignored_in_row"], 0)
+        resp = [e for e in st["log"] if e["event"] == "response"][-1]
+        self.assertEqual((resp["response"], resp["arm"]), ("sent_anyway", "held"))
+
+    def test_shown_arm_unchanged_and_status_compares_arms(self):
+        self.on(holdback="0.5", threshold="5", cooldown="5")
+        t = self.t0
+        for i, (r, answer) in enumerate(((0.9, "why did you do that?"), (0.1, "ok"), (0.9, "ok"), (0.1, "why?"))):
+            sid = f"round{i}"  # a fresh session per round so streaks do not carry over
+            with mock.patch.object(self.n, "_rand", lambda r=r: r):
+                out = self.run_prompts(["ok"] * 5, t, sid=sid)
+            if r >= 0.5:
+                self.assertIn("5 messages", out[-1])
+            else:
+                self.assertIsNone(out[-1])
+            self.n.on_prompt(sid, answer, now=t + timedelta(minutes=6))
+            t += timedelta(minutes=30)
+        line = self.n.status().splitlines()[-1]
+        self.assertIn("shown 2 moments, acted 50%", line)
+        self.assertIn("held back 2 moments, acted 50%", line)
+        self.assertIn("+0 points", line)
+
+    def test_ratio_fires_where_streak_would_not(self):
+        self.on(rule="ratio", **{"ratio-threshold": "0.9"})
+        out = self.run_prompts(["ok"] * 14 + ["why is this failing?"] + ["ok"] * 5, self.t0)
+        self.assertEqual([m for m in out[:19] if m], [])  # not before the window of 20 is full
+        self.assertIn("19 of your last 20", out[19])
+        ev = [e for e in self.n.load()["log"] if e["event"] == "nudge"][-1]
+        self.assertEqual((ev["rule"], ev["r"]), ("ratio", 0.95))
+
+    def test_ratio_below_threshold_and_window_cleared(self):
+        self.on(rule="ratio", **{"ratio-threshold": "0.9"})
+        out = self.run_prompts((["ok"] * 3 + ["why?"]) * 10, self.t0)  # 75% passive
+        self.assertEqual([m for m in out if m], [])
+        self.on(rule="ratio", **{"ratio-threshold": "0.75", "cooldown": "5"})
+        out = self.run_prompts(["ok"] * 20, self.t0 + timedelta(hours=1), sid="t")
+        self.assertTrue(out[19])
+        sess = self.n.load()["sessions"]["t"]
+        self.assertEqual(sess["recent"], [])  # cleared after firing
+
+    def test_ratio_windows_are_per_session(self):
+        self.on(rule="ratio")
+        out = [self.n.on_prompt("a" if i % 2 else "b", "ok", now=self.t0 + timedelta(minutes=i)) for i in range(30)]
+        self.assertEqual([m for m in out if m], [])  # each session has only 15
+
+    def test_bad_settings_are_refused(self):
+        self.assertIn("must be", self.n.configure("holdback", "2"))
+        self.assertIn("must be", self.n.configure("rule", "sometimes"))
+        self.assertIn("Unknown", self.n.configure("colour", "red"))
+        self.assertEqual(self.n.load()["holdback"], 0.0)
+
+    def test_experiment_state_holds_no_prompt_text(self):
+        self.on(rule="ratio", holdback="0.5")
+        self.run_prompts(["SECRET ok"] * 45 + ["why SECRET?"], self.t0)
+        raw = (Path(self.tmp.name) / "nudge.json").read_text(encoding="utf-8")
+        self.assertNotIn("SECRET", raw)
+
+    def test_cli_sets_values(self):
+        from contextlib import redirect_stdout
+        import io
+        sys.path.insert(0, str(ROOT))
+        import mirror as cli
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            cli.main(["nudge", "holdback", "0.5"])
+            cli.main(["nudge", "rule", "ratio"])
+        self.assertIn("holdback set to 0.5", buf.getvalue())
+        self.assertEqual(self.n.load()["rule"], "ratio")
 
 
 class ClaudePlugin(unittest.TestCase):

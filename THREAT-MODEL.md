@@ -39,7 +39,7 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | Protection | How to verify |
 |---|---|
 | The hook reads only the prompt Claude Code passes it; it opens no log file | `mirror_core/nudge.py`, function `on_prompt` |
-| The prompt is labelled and dropped; `~/.mirror/nudge.json` holds counts, times and session ids only | Test `test_state_holds_no_prompt_text` |
+| The prompt is labelled and dropped; `~/.mirror/nudge.json` holds counts, times, session ids, settings and a 0/1 flag per recent message (question or pushback, or not) only | Test `test_state_holds_no_prompt_text` |
 | Off until you type `/mirror:on`; `/mirror:off` stops it | Tests `test_off_by_default_intro_once`, `test_off_stops_everything` |
 | Claude cannot turn nudges on or off, snooze or start a check by itself | Every plugin skill sets `disable-model-invocation: true`; test `test_manifest_hook_and_skills` |
 | The nudge line is shown to you as a `systemMessage`; the hook runs synchronously because an async hook's message goes to Claude instead | Same test checks the hook is not async |
