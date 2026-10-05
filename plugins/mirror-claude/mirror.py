@@ -251,7 +251,9 @@ def cmd_nudge(args):
         st = nudge.load()
         st["threshold"] = max(3, args.threshold)
         nudge.save(st)
-    if args.action == "status":
+    if args.action in nudge.SETTINGS:
+        print(nudge.configure(args.action, args.value))
+    elif args.action == "status":
         print(nudge.status())
     else:
         print(nudge.respond(args.action, args.minutes))
@@ -293,7 +295,9 @@ def main(argv=None):
     sub.add_parser("doctor", parents=[common], help="print versions and counts (no message text) to debug a setup")
     sub.add_parser("nudge-hook", help="(used by the plugin hook) read one prompt event from stdin")
     ng = sub.add_parser("nudge", help="turn nudges on/off, snooze them, or see their status")
-    ng.add_argument("action", choices=["on", "off", "snooze", "check", "status"])
+    ng.add_argument("action", choices=["on", "off", "snooze", "check", "status",
+                                       "holdback", "rule", "ratio-threshold", "window", "threshold", "cooldown"])
+    ng.add_argument("value", nargs="?", help="with a setting: its new value, e.g. 'nudge rule ratio' or 'nudge holdback 0.5'")
     ng.add_argument("--minutes", type=int, default=None)
     ng.add_argument("--threshold", type=int, default=None, help="with 'on': messages without a question before a nudge")
     sub.add_parser("forget", help="delete everything Mirror stored")

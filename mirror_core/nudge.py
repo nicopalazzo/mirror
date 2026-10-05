@@ -12,6 +12,13 @@ Design (see THREAT-MODEL.md and the JITAI framework, Nahum-Shani et al. 2018):
   after a nudge was logged as ignored). A nudge with no message after it counts as ignored too.
   Each ignored nudge doubles the cooldown (max 8x).
   Three ignored in a row pauses Mirror for a day and says so once ("provide nothing").
+- Two firing rules (5 Oct 2026). "streak": N messages in a row without a question or pushback.
+  "ratio": the share of passive messages (directive, approval, context) over the last `window`
+  counted messages reaches `ratio_threshold`; one question no longer resets everything.
+- Hold-back experiment (5 Oct 2026). With `holdback` > 0, each time the rule fires a coin decides
+  whether the nudge is shown or silently held back. The next message is logged as the response in
+  both arms, so the acted rate after a shown nudge can be compared with the same moment without one.
+  Held-back moments start the cooldown but never count as ignored. Off (0.0) by default.
 - A nudge blocks that one prompt and shows its line where the user is typing; the prompt stays in
   the input box, so Enter sends it. Claude Code does not display systemMessage from this hook
   (tested 26 Sep 2026, v2.1.283, Desktop app and CLI), so blocking is the only direct channel.
@@ -19,6 +26,7 @@ Design (see THREAT-MODEL.md and the JITAI framework, Nahum-Shani et al. 2018):
 """
 from __future__ import annotations
 import json
+import random
 from datetime import datetime, timedelta, timezone
 
 from . import store
@@ -32,7 +40,12 @@ DEFAULTS = {
     "snooze_until": None,
     "last_nudge": None,
     "pending": False,
+    "pending_arm": None,
     "ignored_in_row": 0,
+    "rule": "streak",
+    "window": 20,
+    "ratio_threshold": 0.9,
+    "holdback": 0.0,
     "sessions": {},
     "log": [],
 }
@@ -46,10 +59,22 @@ COPY = [
     "Mirror held this message. Nothing is broken. {n} messages without a question. Review Claude's last answer?\n" + CONTROLS,
     "Mirror held this message. Nothing is broken. {n} messages without a question or pushback. Review Claude's last answer?\n" + CONTROLS,
 ]
+COPY_RATIO = ("Mirror held this message. Nothing is broken. {k} of your last {w} messages had no question or pushback. "
+              "Review Claude's last answer?\n" + CONTROLS)
 INTRO = ("Mirror nudges are off. Type /mirror:on to turn them on. "
          "Mirror counts your messages but never stores or sends what you write.")
 STEP_BACK = ("No answer to the last 3 nudges, so Mirror will stay quiet for a day.\n"
              "/mirror:on: resume · /mirror:off: turn off")
+
+
+_rand = random.random  # replaced in tests
+
+
+def _dur(mins):
+    if mins >= 60 and mins % 60 == 0:
+        h = mins // 60
+        return f"{h} hour" + ("s" if h > 1 else "")
+    return f"{mins} minutes"
 
 
 def _now():
@@ -98,11 +123,15 @@ def _log(st, event, **kw):
 
 def _close_pending(st, response):
     if st.get("pending"):
+        arm = st.get("pending_arm") or "shown"
         st["pending"] = False
-        _log(st, "response", response=response)
+        st["pending_arm"] = None
+        _log(st, "response", response=response, arm=arm)
+        if arm != "shown":
+            return  # the user saw nothing, so nothing was ignored or answered
         if response in ("check", "snooze", "off", "acted", "edited"):
             st["ignored_in_row"] = 0
-        elif response == "sent_anyway":
+        elif response in ("sent_anyway", "ignored"):
             st["ignored_in_row"] = st.get("ignored_in_row", 0) + 1
 
 
@@ -126,18 +155,25 @@ def on_prompt(session_id, prompt, now=None):
         _close_pending(st, "acted" if kind in RESET_KINDS else "sent_anyway" if kind == "approval" else "edited")
     sess = st["sessions"].setdefault(session_id or "default", {"streak": 0})
     sess["seen"] = _iso(now)
-    sess["streak"] = 0 if kind in RESET_KINDS else sess.get("streak", 0) + 1
+    active = kind in RESET_KINDS
+    sess["streak"] = 0 if active else sess.get("streak", 0) + 1
+    window = int(st.get("window") or 20)
+    recent = (sess.get("recent") or []) + [0 if active else 1]
+    sess["recent"] = recent[-window:]
+    r = sum(sess["recent"]) / len(sess["recent"])
+    rule = st.get("rule") or "streak"
+    if rule == "ratio":
+        hit = len(sess["recent"]) >= window and r >= float(st.get("ratio_threshold") or 0.9)
+    else:
+        hit = sess["streak"] >= st["threshold"]
     msg = None
     snooze = _parse(st.get("snooze_until"))
     last = _parse(st.get("last_nudge"))
     mult = 2 ** min(st.get("ignored_in_row", 0), 3)
     cool = timedelta(minutes=st["cooldown_minutes"] * mult)
     ready = (snooze is None or now >= snooze) and (last is None or now - last >= cool)
-    if sess["streak"] >= st["threshold"] and ready:
-        if st.get("pending"):
-            st["ignored_in_row"] = st.get("ignored_in_row", 0) + 1
-            _log(st, "response", response="ignored")
-            st["pending"] = False
+    if hit and ready:
+        _close_pending(st, "ignored")
         if st["ignored_in_row"] >= 3:
             st["snooze_until"] = _iso(now + timedelta(days=1))
             st["ignored_in_row"] = 0
@@ -145,11 +181,22 @@ def on_prompt(session_id, prompt, now=None):
             msg = STEP_BACK
         else:
             n = sess["streak"]
-            msg = COPY[len([e for e in st["log"] if e["event"] == "nudge"]) % len(COPY)].format(n=n)
+            k, w = sum(sess["recent"]), len(sess["recent"])
+            info = {"rule": rule, "streak": n, "r": round(r, 2)}
             st["pending"] = True
             st["last_nudge"] = _iso(now)
-            _log(st, "nudge", streak=n)
+            if _rand() < float(st.get("holdback") or 0.0):
+                st["pending_arm"] = "held"
+                _log(st, "withheld", **info)
+            else:
+                st["pending_arm"] = "shown"
+                if rule == "ratio":
+                    msg = COPY_RATIO.format(k=k, w=w)
+                else:
+                    msg = COPY[len([e for e in st["log"] if e["event"] == "nudge"]) % len(COPY)].format(n=n)
+                _log(st, "nudge", **info)
         sess["streak"] = 0
+        sess["recent"] = []
     save(st)
     return msg
 
@@ -161,8 +208,13 @@ def respond(action, minutes=None, now=None):
     if action == "on":
         st["enabled"], st["introduced"], st["snooze_until"] = True, True, None
         _log(st, "on")
-        out = (f"Mirror nudges are on. You'll see one line after {st['threshold']} messages without a question "
-               f"or pushback, at most once every {st['cooldown_minutes'] // 60} hours. /mirror:off stops them.")
+        if st.get("rule") == "ratio":
+            when = (f"when at least {round(100 * float(st['ratio_threshold']))}% of your last {st['window']} messages "
+                    f"had no question or pushback")
+        else:
+            when = f"after {st['threshold']} messages without a question or pushback"
+        out = (f"Mirror nudges are on. You'll see one line {when}, at most once every "
+               f"{_dur(st['cooldown_minutes'])}. /mirror:off stops them.")
     elif action == "off":
         _close_pending(st, "off")
         st["enabled"] = False
@@ -184,18 +236,85 @@ def respond(action, minutes=None, now=None):
     return out
 
 
+SETTINGS = {
+    "holdback": (float, 0.0, 0.9, "share of firings held back as a comparison"),
+    "rule": (str, None, None, "streak or ratio"),
+    "ratio-threshold": (float, 0.5, 1.0, "share of passive messages that fires the ratio rule"),
+    "window": (int, 5, 100, "messages the ratio rule looks back over"),
+    "threshold": (int, 3, 500, "messages in a row for the streak rule"),
+    "cooldown": (int, 5, 1440, "minimum minutes between firings"),
+}
+_KEYS = {"ratio-threshold": "ratio_threshold", "cooldown": "cooldown_minutes"}
+
+
+def configure(name, value):
+    """Change one nudge setting. Returns a short confirmation or an error line."""
+    if name not in SETTINGS:
+        return f"Unknown setting: {name}. Settings: {', '.join(SETTINGS)}."
+    typ, lo, hi, what = SETTINGS[name]
+    try:
+        v = typ(value)
+        if typ is str:
+            if v not in ("streak", "ratio"):
+                raise ValueError
+        elif not lo <= v <= hi:
+            raise ValueError
+    except (TypeError, ValueError):
+        rng = "streak or ratio" if typ is str else f"{lo} to {hi}"
+        return f"{name} must be {rng} ({what})."
+    st = load()
+    st[_KEYS.get(name, name)] = v
+    _log(st, "config", setting=name, value=v)
+    save(st)
+    return f"{name} set to {v}."
+
+
+def _arm_line(log, holdback):
+    by = {"shown": [], "held": []}
+    for e in log:
+        if e["event"] == "response" and e.get("arm"):  # responses from before the test carry no arm
+            by.setdefault(e["arm"], []).append(e.get("response"))
+    if not by["held"] and not holdback:
+        return None
+
+    def rates(rs):
+        if not rs:
+            return "no answers yet", None
+        acted = sum(1 for r in rs if r in ("acted", "check"))
+        both = acted + rs.count("edited")
+        return f"{len(rs)} moments, acted {round(100 * acted / len(rs))}%, acted or edited {round(100 * both / len(rs))}%", acted / len(rs)
+
+    s_txt, s_r = rates(by["shown"])
+    h_txt, h_r = rates(by["held"])
+    line = f"Hold-back test ({round(100 * holdback)}% held back): shown {s_txt}; held back {h_txt}"
+    if s_r is not None and h_r is not None:
+        line += f"; difference in acted rate {round(100 * (s_r - h_r)):+d} points (small samples: a direction, not a result)"
+    return line
+
+
 def status():
     st = load()
     nudges = [e for e in st["log"] if e["event"] == "nudge"]
-    responses = [e.get("response") for e in st["log"] if e["event"] == "response"]
+    responses = [e.get("response") for e in st["log"] if e["event"] == "response" and (e.get("arm") or "shown") == "shown"]
+    if st.get("rule") == "ratio":
+        rule = f"rule: {round(100 * float(st['ratio_threshold']))}% passive over last {st['window']} messages"
+        latest = max(st.get("sessions", {}).values(), key=lambda s: s.get("seen", ""), default=None)
+        if latest and latest.get("recent"):
+            rec = latest["recent"]
+            rule += f" (now {round(100 * sum(rec) / len(rec))}% over {len(rec)})"
+    else:
+        rule = f"rule: {st['threshold']} messages in a row"
     lines = [
-        f"Nudges: {'on' if st['enabled'] else 'off'}; threshold {st['threshold']} messages; cooldown {st['cooldown_minutes']} min"
+        f"Nudges: {'on' if st['enabled'] else 'off'}; {rule}; cooldown {st['cooldown_minutes']} min"
         + (f" x{2 ** min(st['ignored_in_row'], 3)} (after ignored nudges)" if st.get("ignored_in_row") else ""),
         f"Snoozed until: {st['snooze_until'] or '-'}",
         f"Nudges shown: {len(nudges)}; answered with check {responses.count('check')}, snooze {responses.count('snooze')}, "
         f"off {responses.count('off')}; acted (asked or pushed back) {responses.count('acted')}; "
         f"edited {responses.count('edited')}; sent anyway {responses.count('sent_anyway')}; ignored {responses.count('ignored')}",
     ]
+    arm = _arm_line(st["log"], float(st.get("holdback") or 0.0))
+    if arm:
+        lines.append(arm)
     return "\n".join(lines)
 
 
