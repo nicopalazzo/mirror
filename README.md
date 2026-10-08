@@ -59,7 +59,7 @@ claude plugin marketplace add nicopalazzo/mirror
 claude plugin install mirror@mirror
 ```
 
-Then start a new session and type `/mirror:on`. `/mirror:status` shows how you have answered.
+Then start a new session and type `/mirror:on`. `/mirror:status` shows how you have answered. `/mirror:report` builds the HTML report from your own logs and opens it in your browser (the page shows your own notes, so do not share your screen with it open).
 
 Two optional settings, from a terminal in the `mirror` folder: `python3 mirror.py nudge rule ratio` fires on the share of your last 20 messages without a question or pushback instead of an unbroken streak (`scripts/calibrate_nudge.py` shows how often each rule would have fired on your own logs). `python3 mirror.py nudge holdback 0.5` holds back half the nudges at random, so `/mirror:status` can compare what you did with and without one. Remove with `claude plugin uninstall mirror@mirror`. Codex and Cursor plugins are planned; they are packaged separately because each tool loads hooks differently.
 
