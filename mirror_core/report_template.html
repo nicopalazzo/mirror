@@ -4,128 +4,224 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mirror</title>
 <style>
-:root{color-scheme:light;--bg:#f6f5f2;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#3f3e3b;--muted:#5f5e59;--line:#d9d7d0;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--h0:#eaf1fb;--h1:#b7d0f2;--h2:#7fb0ea;--h3:#3f87dc;--h4:#1d5cad}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#111110;--surface:#1a1a19;--ink:#fff;--ink2:#dcdbd2;--muted:#b3b2a8;--line:#3a3934;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--h0:#1c2634;--h1:#24405f;--h2:#2f5f97;--h3:#3f87dc;--h4:#8fc0f5}}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#111110;--surface:#1a1a19;--ink:#fff;--ink2:#dcdbd2;--muted:#b3b2a8;--line:#3a3934;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--h0:#1c2634;--h1:#24405f;--h2:#2f5f97;--h3:#3f87dc;--h4:#8fc0f5}
-*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:64px}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-header{max-width:1100px;margin:0 auto;padding:26px 20px 6px}h1{font-size:30px;margin:0 0 4px}
-h2{font-size:22px;margin:0 0 2px}h3{font-size:17px;margin:0 0 6px}
-main{max-width:1100px;margin:0 auto;padding:0 20px 70px}section{margin-top:34px}
-.lead{color:var(--ink2);margin:0 0 4px;max-width:820px}.note{color:var(--muted);font-size:15px;margin:6px 0 0}
-nav{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);z-index:5}
-nav div{max-width:1100px;margin:0 auto;padding:8px 20px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:15px}
-nav a{color:var(--ink);text-decoration:none;font-weight:600}nav a:hover{text-decoration:underline}
-nav .sp{margin-left:auto;display:flex;gap:6px;align-items:center}
-button,select{font:inherit;font-size:14px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
-button.on{background:var(--s1);color:#fff;border-color:var(--s1)}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-top:12px}
-.grid{display:grid;gap:12px}.kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.two{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
-.kpi b{display:block;font-size:32px;line-height:1.1}.kpi span{color:var(--ink2);font-size:15px}
-.big{font-size:34px;font-weight:700;line-height:1.1}.cmp{color:var(--ink2);font-size:15px}
-table{border-collapse:collapse;width:100%;font-size:15px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
-svg{display:block;width:100%;height:auto}svg text{fill:var(--ink2);font-size:14px}svg .l{fill:var(--ink)}
-.legend{display:flex;flex-wrap:wrap;gap:4px 16px;margin:6px 0;font-size:15px}.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-.q{border-left:4px solid var(--s1);padding-left:12px;margin:10px 0 0}.warn{border-left:4px solid var(--s4);padding-left:12px}
-#tip{position:fixed;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.2);opacity:0;z-index:20;max-width:320px}
+:root{color-scheme:light;--bg:#f6f5f2;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#3f3e3b;--muted:#5f5e59;--line:#e3e1da;--grid:#e9e7e0;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--band:rgba(42,120,214,.10);--h0:#eaf1fb;--h1:#b7d0f2;--h2:#7fb0ea;--h3:#3f87dc;--h4:#1d5cad;--gap:#e4e2db;--spark:#8d8b83}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#111110;--surface:#1a1a19;--ink:#fff;--ink2:#dcdbd2;--muted:#b3b2a8;--line:#33322e;--grid:#2a2926;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--band:rgba(57,135,229,.16);--h0:#1c2634;--h1:#24405f;--h2:#2f5f97;--h3:#3f87dc;--h4:#8fc0f5;--gap:#2a2926;--spark:#8d8b83}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#111110;--surface:#1a1a19;--ink:#fff;--ink2:#dcdbd2;--muted:#b3b2a8;--line:#33322e;--grid:#2a2926;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--band:rgba(57,135,229,.16);--h0:#1c2634;--h1:#24405f;--h2:#2f5f97;--h3:#3f87dc;--h4:#8fc0f5;--gap:#2a2926;--spark:#8d8b83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:24px 16px 72px}
+.top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin-bottom:16px}
+h1{font-size:24px;margin:0;letter-spacing:-.01em}h2{font-size:17px;margin:0}
+.sub{color:var(--ink2);font-size:14px;margin:2px 0 0}
+.badge{font-size:13px;color:var(--ink2);border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 12px}
+button{font:inherit;font-size:13px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 12px;cursor:pointer;min-height:32px}
+button[aria-pressed="true"]{background:var(--s1);color:#fff;border-color:var(--s1)}
+button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+.grid{display:grid;gap:14px;margin-top:14px}.tiles{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}.two{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.hd{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:6px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.tile .lab{font-size:14px;font-weight:600;color:var(--ink2)}
+.tile .val{font-size:40px;font-weight:700;line-height:1.05;margin:4px 0 2px;letter-spacing:-.02em}
+.tile .val small{font-size:20px;font-weight:600;margin-left:4px}
+.tile .st{font-size:14px;font-weight:600}.tile .vs{font-size:13px;color:var(--ink2);margin:2px 0 6px}
+.sigs{display:grid;gap:10px}.sig{display:flex;gap:12px;align-items:flex-start}
+.sig .ic{flex:none;width:28px;height:28px;border-radius:50%;border:2px solid var(--ink);display:grid;place-items:center;font-weight:700;font-size:15px}
+.sig p{margin:0}.sig .q{color:var(--ink2);font-size:14px;margin-top:2px}
+.ctl{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
+.chart{min-height:40px}
+svg{display:block;width:100%;height:auto}svg text{fill:var(--ink2);font-size:12px}svg .l{fill:var(--ink)}svg [tabindex]:focus{outline:none}svg [tabindex]:focus-visible{stroke:var(--ink);stroke-width:2}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--ink2);margin:2px 0 6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+.ramp{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);margin-top:6px}.ramp i{width:14px;height:10px;border-radius:2px;display:inline-block}
+.note{color:var(--muted);font-size:13px;margin:8px 0 0}.warn{border-left:3px solid var(--s4);padding-left:10px}
+#tip{position:fixed;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.2);opacity:0;z-index:20;max-width:280px}
+details{margin-top:14px}summary{cursor:pointer;font-weight:600;font-size:14px}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.tw{overflow:auto;max-height:300px}
 textarea{width:100%;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
-details{margin-top:8px}summary{cursor:pointer;font-weight:600;font-size:15px}
-</style></head><body>
-<header><h1>Mirror</h1>
-<p class="lead" id="summary"></p><p class="note" id="disc"></p></header>
-<nav><div><a href="#glance">At a glance</a><a href="#coverage">What is covered</a><a href="#engage">How I engaged</a><a href="#ai">What the AI did</a><a href="#when">When I was active</a><a href="#days">Day by day</a><a href="#share">Share</a><a href="#notes">My notes</a>
-<span class="sp"><span class="note" style="margin:0">Show</span><span id="win"></span><button id="theme" type="button">Theme</button></span></div></nav>
-<main>
-<section id="glance"><h2>At a glance</h2><p class="lead">The size of the window you picked, and how it compares with the same number of days before it.</p><div class="grid kpis" id="kpis"></div></section>
+@media (max-width:520px){.tile .val{font-size:34px}.card{padding:14px}}
+</style></head><body><div class="wrap" id="wrap">
+<div class="top"><div><h1>Mirror</h1><p class="sub" id="range"></p></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="badge" id="cov"></span><button id="theme" type="button">Theme</button></div></div>
+<p class="note" id="disc" style="margin:0 0 12px"></p>
+<div id="body">
 
-<section id="coverage"><h2>What is covered</h2><p class="lead">Read this first. Mirror can only count what it can read, so this shows what is in these numbers and what is not.</p>
-<div class="card"><table id="cov"></table><p class="note warn" id="notread"></p></div></section>
+<div class="card"><p class="eyebrow">What changed</p><div class="sigs" id="signals"></div></div>
+<div class="grid tiles" id="tiles"></div>
 
-<section id="engage"><h2>How did I engage with the AI?</h2><p class="lead">What you did in each message: asked it to do something, asked a question, agreed, or pushed back. Labels come from simple rules and are sometimes wrong.</p>
-<div class="grid two"><div class="card"><h3>Message types in this window</h3><div id="kindBars"></div></div><div class="card"><h3>Message types by day</h3><div class="legend" id="kindLeg"></div><div id="kindDay"></div></div></div>
-<div class="grid two" id="idxEngage"></div></section>
+<div class="card" style="margin-top:14px"><div class="hd"><div><h2>Week by week</h2><p class="sub" id="heroSub"></p></div><button class="tbl" data-for="hero" type="button" aria-pressed="false">Table</button></div>
+<div class="ctl" id="metricTabs" role="group" aria-label="Metric"></div><div class="chart" id="hero"></div><p class="note" id="heroNote"></p></div>
 
-<section id="ai"><h2>How much did the AI do for me?</h2><p class="lead">What the AI did between your messages. Reading and searching are the most common; writes are changes to your files.</p>
-<div class="grid two"><div class="card"><h3>AI actions in this window</h3><div id="actBars"></div></div><div class="card"><h3>Tokens</h3><table id="tok"></table><p class="note">Counts the tools record themselves. Cached means context the tool re-read, not new writing. Not every tool records tokens.</p></div></div>
-<div class="grid two" id="idxAi"></div></section>
+<div class="grid two">
+<div class="card"><div class="hd"><div><h2>What I said, as a share</h2><p class="sub">Weekly mix of message types, as shares so busy weeks do not dominate. Labels come from simple rules and are sometimes wrong.</p></div><button class="tbl" data-for="mix" type="button" aria-pressed="false">Table</button></div><div class="legend" id="mixLeg"></div><div class="chart" id="mix"></div></div>
+<div class="card"><div class="hd"><div><h2>When I send messages</h2><p class="sub" id="heatSub"></p></div><button class="tbl" data-for="heat" type="button" aria-pressed="false">Table</button></div><div class="ctl" id="heatTabs" role="group" aria-label="Heatmap metric"></div><div class="chart" id="heat"></div><p class="note" id="heatNote"></p></div>
+<div class="card"><div class="hd"><div><h2>More handed over, less pushback?</h2><p class="sub">One dot per day with enough messages. Orange: the last 7 days.</p></div><button class="tbl" data-for="sc" type="button" aria-pressed="false">Table</button></div><div class="chart" id="sc"></div><p class="note" id="scNote"></p></div>
+<div class="card"><div class="hd"><div><h2>Every day</h2><p class="sub">One square per day, last 27 weeks.</p></div><button class="tbl" data-for="cal" type="button" aria-pressed="false">Table</button></div><div class="ctl" id="calTabs" role="group" aria-label="Calendar metric"></div><div class="chart" id="cal"></div></div>
+</div>
 
-<section id="when"><h2>When was I active?</h2><p class="lead">Your messages by hour of the day, and how scattered the day was across sessions, projects and tools.</p>
-<div class="card"><h3>Your messages by hour</h3><div id="heat"></div></div><div class="grid two" id="idxFocus"></div></section>
+<details><summary>Details: what is covered, tokens, every day</summary>
+<div class="card" style="margin-top:8px"><p class="note warn" style="margin-top:0"><b>Read this first.</b> Mirror can only count what it can read, so this shows what is in these numbers and what is not.</p><table id="covtab" style="margin-top:8px"></table><p class="note warn" id="notread"></p>
+<h3 style="font-size:15px;margin:16px 0 4px">Tokens</h3><table id="tok"></table><p class="note">Counts the tools record themselves. Cached means context the tool re-read, not new writing. Not every tool records tokens.</p>
+<h3 style="font-size:15px;margin:16px 0 4px">Day by day</h3><div class="tw"><table id="daytab"></table></div>
+<p class="note"><b>How "usual" is set.</b> The line and band come from your first 12 weeks with enough messages (process-behavior method: the average, plus or minus 2.66 times the average week-to-week change). A point outside the band, or 8 weeks in a row on one side of the line, is more than ordinary wobble. It says something changed, not whether that is good. They appear once you have 6 such weeks.</p></div></details>
 
-<section id="days"><h2>Day by day</h2><p class="lead">The same numbers for each day in the window.</p><div class="card"><table id="daytab"></table></div></section>
+<details id="shareBox"><summary>Numbers to share, if you choose</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">What <code>share-card</code> prints: numbers only, never your messages. Mirror sends nothing; copying is your decision.</p>
+<p><label><input type="checkbox" id="incnote"> Include my notes</label></p><textarea id="card" readonly rows="10"></textarea>
+<p><button id="copy" type="button">Copy</button> <span id="copied" class="note"></span></p></div></details>
 
-<section id="share"><h2>Numbers to share, if you choose</h2><p class="lead">What <code>share-card</code> prints: numbers only, never your messages. Mirror sends nothing; copying is your decision.</p>
-<div class="card"><p><label><input type="checkbox" id="incnote"> Include my notes</label></p><textarea id="card" readonly rows="10"></textarea>
-<p><button id="copy" type="button">Copy</button> <span id="copied" class="note"></span></p></div></section>
-
-<section id="notes"><h2>My notes on how well this matched</h2><p class="lead">Your answers to "Does this match how your day felt?", kept on this computer.</p><div class="card"><table id="fb"></table></div></section>
-</main><div id="tip"></div>
+<details><summary>My notes on how well this matched</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">Your answers to "Does this match how your day felt?", kept on this computer.</p><table id="fb"></table></div></details>
+</div></div><div id="tip"></div>
 <script>
 const D=/*__DATA__*/null;
-const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const tip=$('tip');const showTip=(e,h)=>{tip.innerHTML=h;tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-330)+'px';tip.style.top=(e.clientY+14)+'px'};const hideTip=()=>{tip.style.opacity=0};
-const bindTips=el=>el.querySelectorAll('[data-t]').forEach(r=>{r.onmousemove=e=>showTip(e,esc(r.dataset.t));r.onmouseleave=hideTip});
-const f=(v,s)=>v===null||v===undefined?'n/a':v+(s||'');
-const fmtD=d=>new Date(d+'T12:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 $('disc').textContent=D.disclaimer;
 $('theme').onclick=()=>{const r=document.documentElement;const dark=(r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'))==='dark';r.dataset.theme=dark?'light':'dark'};
+const tip=$('tip');const showTip=(x,y,h)=>{tip.innerHTML=h;tip.style.opacity=1;tip.style.left=Math.max(4,Math.min(x+14,innerWidth-290))+'px';tip.style.top=(y+14)+'px'};const hideTip=()=>{tip.style.opacity=0};
+function bindTips(el){el.querySelectorAll('[data-t]').forEach(r=>{r.onmousemove=e=>showTip(e.clientX,e.clientY,esc(r.dataset.t));r.onmouseleave=hideTip;r.onclick=e=>{showTip(e.clientX,e.clientY,esc(r.dataset.t));setTimeout(hideTip,2500)};r.onfocus=()=>{const b=r.getBoundingClientRect();showTip(b.left,b.top,esc(r.dataset.t))};r.onblur=hideTip})}
 const ALL=D.days.slice().sort((a,b)=>a.date<b.date?-1:1);
-let WIN=14;let THIN=0;
-const CHOICES=[[7,'Last 7 days'],[14,'Last 14 days'],[30,'Last 30 days'],[0,'Everything']];
-function pct(n,d){return d?Math.round(1000*n/d)/10:null}
-function span(list){const c={engaged:0,challenge:0,question:0,approval:0};let q=0,aw=0,ut=0,acts=0,act=0,sess=0,proj=0,writes=0,run=0,prompts=0;const tools=new Set();const kinds={},cats={};
- list.forEach(d=>{c.engaged+=d.counts.engaged;c.challenge+=d.counts.challenge;c.question+=d.counts.question;c.approval+=d.counts.approval;q+=d.idx.quick_approvals;aw+=d.idx.approvals_after_writes;ut+=(d.idx.approvals_untimed||0);acts+=d.ai_actions;act+=d.active_minutes;sess+=d.sessions;proj+=d.projects;writes+=d.idx.writes;run=Math.max(run,d.idx.longest_write_run);prompts+=d.prompts;d.tools.forEach(t=>tools.add(t));
-  Object.entries(d.kinds).forEach(([k,v])=>kinds[k]=(kinds[k]||0)+v);Object.entries(d.cats).forEach(([k,v])=>cats[k]=(cats[k]||0)+v)});
- const n=list.length;return{n,engaged:c.engaged,prompts,acts,kinds,cats,tools:[...tools],writes,run,quick:q,aw,untimed:ut,
-  pushback:pct(c.challenge,c.engaged),question:pct(c.question,c.engaged),approval:pct(c.approval,c.engaged),
-  apm:c.engaged?Math.round(10*acts/c.engaged)/10:null,actMin:act,actPerDay:n?Math.round(act/n):null,sessPerDay:n?Math.round(10*sess/n)/10:null,projPerDay:n?Math.round(10*proj/n)/10:null}}
-const MINMSG=10;
-const T=d=>new Date(d.date+'T12:00').getTime();const DAY=864e5;
-function windows(){const lastT=ALL.length?T(ALL[ALL.length-1]):0;const cur=WIN?ALL.filter(d=>T(d)>lastT-WIN*DAY):ALL.slice();const prev=WIN?ALL.filter(d=>T(d)<=lastT-WIN*DAY&&T(d)>lastT-2*WIN*DAY):[];const P0=prev.length?span(prev):null;return{cur,prev,C:span(cur),P:P0&&P0.engaged>=MINMSG?P0:null,Pthin:P0&&P0.engaged<MINMSG?P0:null}}
-function cmp(cur,prev,suffix,label){if(prev===null||prev===undefined||cur===null||cur===undefined)return'<span class="cmp">'+(THIN?'too few earlier messages ('+THIN+') to compare fairly':'nothing earlier to compare with')+'</span>';
- const d=cur-prev;if(Math.abs(d)<0.5)return`<span class="cmp">about your usual ${prev}${suffix||''} ${label}</span>`;return`<span class="cmp">${d>0?'higher':'lower'} than your usual ${prev}${suffix||''} ${label}</span>`}
-function idxCard(key,big,rows,cmpHtml){const e=D.indexes[key];return`<div class="card"><h3>${esc(e.title)}</h3><div class="big">${big}</div>${cmpHtml||''}<p style="margin:8px 0 0">${rows}</p><p class="note"><b>Measures:</b> ${esc(e.measures)}</p><p class="note"><b>Cannot tell you:</b> ${esc(e.cannot)}</p><div class="q"><b>Ask yourself:</b> ${esc(e.ask)}</div></div>`}
-const KS=['directive','question','approval','challenge','context'];const KL={directive:'Asked it to do something',question:'Asked a question',approval:'Agreed / go on',challenge:'Pushed back or corrected',context:'Shared context or opinion'};
-const CS=['reply','read','research','write','shell'];const CL={reply:'Replied',read:'Read files',research:'Searched the web',write:'Wrote or edited files',shell:'Ran commands'};
-function hbars(el,items,color){const w=520,pad=200,rh=34,mx=Math.max(1,...items.map(i=>i.v));let s=`<svg viewBox="0 0 ${w} ${items.length*rh+4}">`;
- items.forEach((it,i)=>{const y=i*rh+2,bw=Math.max(it.v?3:0,(w-pad-50)*it.v/mx);s+=`<text class="l" x="0" y="${y+20}">${esc(it.k)}</text><rect x="${pad}" y="${y+4}" width="${bw}" height="22" rx="4" fill="${color(i)}" data-t="${esc(it.k)}: ${it.v}"/><text class="l" x="${pad+bw+6}" y="${y+21}">${it.v}</text>`});el.innerHTML=s+'</svg>';bindTips(el)}
-function render(){
- const {cur,prev,C,P,Pthin}=windows();const first=cur[0]&&cur[0].date,last=cur[cur.length-1]&&cur[cur.length-1].date;
- // summary in observation words only
- let sm=cur.length?`From ${fmtD(first)} to ${fmtD(last)} you were active on ${C.n} days, sent ${C.prompts} messages, and the AI took ${C.acts} actions (${f(C.apm)} per message). Pushback was ${f(C.pushback,'%')} of your messages${P?` (${f(P.pushback,'%')} in the ${WIN} days before)`:''}.`:'No AI activity found.';
- THIN=Pthin?Pthin.engaged:0;$('summary').textContent=sm+' These are counts, not judgements.';
- $('kpis').innerHTML=[[C.n,'active days'],[C.prompts,'messages you sent'],[C.acts,'AI actions'],[C.actMin,'active minutes']].map(k=>`<div class="card kpi"><b>${k[0]}</b><span>${k[1]}</span></div>`).join('');
- // coverage
- $('cov').innerHTML='<tr><th>Tool</th><th>From</th><th>To</th><th class="n">Days</th><th class="n">Messages</th></tr>'+D.coverage.map(c=>`<tr><td>${esc(c.tool)}</td><td>${c.first}</td><td>${c.last}</td><td class="n">${c.days}</td><td class="n">${c.messages}</td></tr>${c.note?`<tr><td colspan="5" class="note" style="padding-top:0">${esc(c.note)}</td></tr>`:''}`).join('');
- $('notread').innerHTML='<b>Not in these numbers:</b> '+esc(D.not_read.join(' '));
- // engage
- hbars($('kindBars'),KS.map(k=>({k:KL[k],v:C.kinds[k]||0})),i=>`var(--s${i+1})`);
- $('kindLeg').innerHTML=KS.map((k,i)=>`<span><i style="background:var(--s${i+1})"></i>${KL[k]}</span>`).join('');
- (function(){const w=520,lab=88,rh=32,mx=Math.max(1,...cur.map(d=>d.prompts));let s=`<svg viewBox="0 0 ${w} ${cur.length*rh+4}">`;
-  cur.forEach((d,r)=>{let x=lab;s+=`<text class="l" x="0" y="${r*rh+21}">${d.date.slice(5)}</text>`;KS.forEach((k,i)=>{const v=d.kinds[k]||0;if(!v)return;const bw=(w-lab-40)*v/mx;s+=`<rect x="${x}" y="${r*rh+5}" width="${Math.max(bw-2,1)}" height="22" rx="3" fill="var(--s${i+1})" data-t="${d.date} · ${KL[k]}: ${v}"/>`;x+=bw});s+=`<text class="l" x="${x+5}" y="${r*rh+21}">${d.prompts}</text>`});$('kindDay').innerHTML=s+'</svg>';bindTips($('kindDay'))})();
- $('idxEngage').innerHTML=idxCard('challenge',f(C.pushback,'%')+' <span class="cmp" style="font-weight:400">pushback</span>',`Questions: <b>${f(C.question,'%')}</b> of your messages.`,P?cmp(C.pushback,P.pushback,'%','(the '+WIN+' days before)'):cmp(null,null))
-  +idxCard('approval',f(C.approval,'%')+' <span class="cmp" style="font-weight:400">short agreements</span>',(C.aw?`Quick approvals: <b>${C.quick} of ${C.aw}</b> approvals after file changes came within 15 seconds.`:'No timed approvals after file changes in this window.')+(C.untimed?` ${C.untimed} more came after Cursor changed files; Cursor's log has no reply times, so they cannot be timed.`:''),P?cmp(C.approval,P.approval,'%','(the '+WIN+' days before)'):cmp(null,null));
- // ai
- hbars($('actBars'),CS.map(k=>({k:CL[k],v:C.cats[k]||0})),i=>`var(--s${i+1})`);
- $('tok').innerHTML='<tr><th>Model</th><th class="n">Messages</th><th class="n">Output</th><th class="n">New input</th><th class="n">Cached</th></tr>'+Object.entries(D.tokens).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${v.messages}</td><td class="n">${v.output.toLocaleString()}</td><td class="n">${v.input.toLocaleString()}</td><td class="n">${v.cached.toLocaleString()}</td></tr>`).join('');
- $('idxAi').innerHTML=idxCard('delegation',f(C.apm)+' <span class="cmp" style="font-weight:400">AI actions per message</span>',`Longest run of file changes without a message from you: <b>${C.run}</b>. Files written: <b>${C.writes}</b>.`,P?cmp(C.apm,P.apm,'','(the '+WIN+' days before)'):cmp(null,null));
- // when
- (function(){const hrs=[...Array(19).keys()].map(i=>i+5);const cw=48,ch=28,lab=84;let mx=1;cur.forEach(d=>hrs.forEach(h=>{mx=Math.max(mx,d.hours_prompts[h]||0)}));
-  const ramp=v=>v===0?'var(--h0)':v<=mx*.15?'var(--h1)':v<=mx*.4?'var(--h2)':v<=mx*.7?'var(--h3)':'var(--h4)';
-  let s=`<svg viewBox="0 0 ${lab+hrs.length*cw} ${cur.length*ch+28}">`;hrs.forEach((h,i)=>s+=`<text x="${lab+i*cw+cw/2}" y="14" text-anchor="middle">${h}h</text>`);
-  cur.forEach((d,r)=>{s+=`<text class="l" x="0" y="${28+r*ch+19}">${d.date.slice(5)}</text>`;hrs.forEach((h,i)=>{const v=d.hours_prompts[h]||0;s+=`<rect x="${lab+i*cw+1}" y="${24+r*ch+1}" width="${cw-2}" height="${ch-2}" rx="4" fill="${ramp(v)}" data-t="${d.date} at ${h}h: ${v} messages"/>${v?`<text x="${lab+i*cw+cw/2}" y="${24+r*ch+19}" text-anchor="middle" style="fill:${v>mx*.4?'#fff':'var(--ink)'}">${v}</text>`:''}`})});
-  $('heat').innerHTML=s+'</svg>';bindTips($('heat'))})();
- $('idxFocus').innerHTML=idxCard('focus',f(C.actPerDay)+' <span class="cmp" style="font-weight:400">active minutes per day</span>',`About <b>${f(C.sessPerDay)}</b> sessions and <b>${f(C.projPerDay)}</b> projects per active day; tools: <b>${esc(C.tools.join(', ')||'-')}</b>.`,P?cmp(C.actPerDay,P.actPerDay,'',' minutes (the '+WIN+' days before)'):cmp(null,null));
- // days
- $('daytab').innerHTML='<tr><th>Day</th><th>Tools</th><th class="n">Messages</th><th class="n">Active min</th><th class="n">Pushback</th><th class="n">Questions</th><th class="n">Agreements</th><th class="n">Quick approvals</th><th class="n">Actions/message</th></tr>'+cur.slice().reverse().map(d=>`<tr><td>${fmtD(d.date)}</td><td>${esc(d.tools.join(', '))}</td><td class="n">${d.prompts}</td><td class="n">${d.active_minutes}</td><td class="n">${f(d.idx.pushback_pct,'%')}</td><td class="n">${f(d.idx.question_pct,'%')}</td><td class="n">${f(d.idx.approval_pct,'%')}</td><td class="n">${d.idx.approvals_after_writes?d.idx.quick_approvals+'/'+d.idx.approvals_after_writes:'-'}</td><td class="n">${f(d.idx.actions_per_prompt)}</td></tr>`).join('');
-}
-$('win').innerHTML=CHOICES.map(([n,l])=>`<button type="button" data-n="${n}">${l}</button>`).join(' ');
-function setWin(n){WIN=n;document.querySelectorAll('#win button').forEach(b=>b.classList.toggle('on',+b.dataset.n===n));render()}
-document.querySelectorAll('#win button').forEach(b=>b.onclick=()=>setWin(+b.dataset.n));
-setWin(WIN);
+function main(){
+const MINMSG=10,DAY=864e5;
+const t=d=>new Date(d+'T12:00').getTime();const LAST=t(ALL[ALL.length-1].date);
+const fmt=d=>new Date(typeof d==='number'?d:t(d)).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+const nice=(mx,n=4)=>{const raw=(mx||1)/n,p=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/p,s=(f<=1?1:f<=2?2:f<=5?5:10)*p;return{step:s,max:Math.ceil(mx/s)*s}};
+// ---------- metrics (pooled counts, never averages of rates) ----------
+const METRICS=[
+ {key:'challenge',label:'Pushback',unit:'%',idx:'challenge',pct:1,what:'the share of your messages that pushed back',fn:l=>{const e=sum(l,d=>d.counts.engaged);return e>=MINMSG?100*sum(l,d=>d.counts.challenge)/e:null}},
+ {key:'approval',label:'Quick approvals',unit:'%',idx:'approval',pct:1,what:'the share of approvals after file changes that came within 15 seconds',fn:l=>{const a=sum(l,d=>d.idx.approvals_after_writes);return a>=8?100*sum(l,d=>d.idx.quick_approvals)/a:null}},
+ {key:'delegation',label:'AI actions per message',unit:'',idx:'delegation',what:'AI actions for each message you sent',fn:l=>{const e=sum(l,d=>d.counts.engaged);return e>=MINMSG?sum(l,d=>d.ai_actions)/e:null}},
+ {key:'focus',label:'Active minutes per day',unit:'',idx:'focus',what:'minutes of active exchange per calendar day',fn:l=>l.length?sum(l,d=>d.active_minutes)/7:null}];
+const NW=Math.max(2,Math.min(26,Math.floor((LAST-t(ALL[0].date))/(7*DAY))+1));
+const WK=[];for(let i=NW-1;i>=0;i--){const hi=LAST-i*7*DAY,lo=hi-7*DAY;WK.push({end:hi,days:ALL.filter(d=>t(d.date)>lo&&t(d.date)<=hi)})}
+const WEEKS_WITH_DATA=WK.filter(w=>w.days.length).length;
+function limits(v,pct){const b=v.filter(x=>x!==null).slice(0,12);if(b.length<6)return null;const c=b.reduce((a,x)=>a+x,0)/b.length;let mr=0;for(let i=1;i<b.length;i++)mr+=Math.abs(b[i]-b[i-1]);mr/=b.length-1;return{c,lo:Math.max(0,c-2.66*mr),hi:Math.min(pct?100:1e9,c+2.66*mr)}}
+METRICS.forEach(m=>{m.vals=WK.map(w=>m.fn(w.days));const lim=limits(m.vals,m.pct);m.has=!!lim;Object.assign(m,lim||{c:null,lo:null,hi:null});
+ m.now=m.vals[m.vals.length-1];m.prev=m.vals.length>1?m.vals[m.vals.length-2]:null;m.max=Math.max(0,...m.vals.filter(v=>v!==null));
+ m.side=!m.has||m.now===null?0:m.now>m.c?1:-1;let n=0;if(m.side){for(let i=m.vals.length-1;i>=0;i--){const v=m.vals[i];if(v===null||(v>m.c?1:-1)!==m.side)break;n++}}m.run=n;
+ m.out=!m.has||m.now===null?0:m.now>m.hi?1:m.now<m.lo?-1:0});
+const f1=v=>v===null||v===undefined?'n/a':String(Math.round(v*10)/10);
+const show=(m,v)=>v===null||v===undefined?'n/a':(m.key==='focus'?Math.round(v):f1(v))+m.unit;
+const stateTxt=m=>m.now===null?'Not enough data this week':!m.has?(m.prev===null?'First week with enough data':'Last week '+show(m,m.prev)):m.out>0?'Outside your usual range, higher':m.out<0?'Outside your usual range, lower':'Inside your usual range';
+const arrow=m=>!m.has?'':m.out>0||(!m.out&&m.run>=8&&m.side>0)?'↑':m.out<0||(!m.out&&m.run>=8&&m.side<0)?'↓':'→';
+// ---------- header ----------
+$('range').textContent=fmt(ALL[0].date)+' to '+fmt(ALL[ALL.length-1].date)+' · '+ALL.length+' active days · '+sum(ALL,d=>d.prompts).toLocaleString('en-GB')+' messages';
+$('cov').textContent=D.coverage.map(c=>c.tool).join(' + ')||'No tools found';
+$('heroSub').textContent='One dot per week of 7 days.'+(METRICS.some(m=>m.has)?' The line is your usual level, the shaded band your usual range, both set from your first 12 weeks.':' Your usual level and range appear once you have 6 weeks with enough messages.');
+// ---------- signals ----------
+const sigs=[];METRICS.forEach(m=>{if(m.run>=8)sigs.push({m,k:'shift',r:m.run});else if(m.out)sigs.push({m,k:'out'});else if(m.run>=6)sigs.push({m,k:'hint',r:m.run})});
+$('signals').innerHTML=sigs.length?sigs.map(s=>{const m=s.m,hi=(s.k==='out'?m.out:m.side)>0;const w=hi?'above':'below';const body=s.k==='shift'?`<b>${esc(m.label)}</b> has stayed ${w} your usual level for ${s.r} weeks in a row (now ${show(m,m.now)}, usual ${show(m,m.c)}). That is more than week-to-week wobble.`:s.k==='out'?`<b>${esc(m.label)}</b> this week is ${w} your usual range (${show(m,m.now)}; usual range ${show(m,m.lo)} to ${show(m,m.hi)}).`:`<b>${esc(m.label)}</b> has been ${w} your usual level for ${s.r} weeks. At 8 weeks in a row it counts as a shift.`;
+ return `<div class="sig"><span class="ic" aria-hidden="true">${hi?'↑':'↓'}</span><div><p>${body}</p><p class="q">Ask yourself: ${esc(D.indexes[m.idx].ask)}</p></div></div>`}).join(''):
+ METRICS.some(m=>m.has)?'<p style="margin:0">Nothing outside your usual range, and no run of 6 weeks or more on one side.</p>':`<p style="margin:0">Your usual range needs about 6 weeks with enough messages; you have ${WEEKS_WITH_DATA} week${WEEKS_WITH_DATA===1?'':'s'} of data. Until then, compare each week with the one before in the chart below.</p>`;
+// ---------- tiles ----------
+const L7=WK[WK.length-1].days;
+function extra(m){const e=sum(L7,d=>d.counts.engaged);
+ if(m.key==='challenge')return e?`Questions: ${f1(100*sum(L7,d=>d.counts.question)/e)}% of your messages.`:'';
+ if(m.key==='approval'){const a=sum(L7,d=>d.idx.approvals_after_writes),u=sum(L7,d=>d.idx.approvals_untimed||0);return(a?`${sum(L7,d=>d.idx.quick_approvals)} of ${a} approvals after file changes came within 15 seconds.`:'No timed approvals after file changes this week.')+(u?` ${u} more came after Cursor changed files; its log has no reply times, so they cannot be timed.`:'')}
+ if(m.key==='delegation')return `Longest run of file changes without a message from you: ${Math.max(0,...L7.map(d=>d.idx.longest_write_run))}. Files written: ${sum(L7,d=>d.idx.writes)}.`;
+ const n=L7.length||1;return `About ${f1(sum(L7,d=>d.sessions)/n)} sessions and ${f1(sum(L7,d=>d.projects)/n)} projects per active day; tools: ${esc([...new Set(L7.flatMap(d=>d.tools))].join(', ')||'-')}.`}
+function spark(m){const w=220,h=40,vals=m.vals.slice(-12),mx=Math.max(...vals.filter(v=>v!==null),m.has?m.hi:0,1)*1.05;const X=i=>4+i*(w-8)/Math.max(1,vals.length-1),Y=v=>h-4-(h-8)*v/mx;
+ let s=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(m.label)}, last ${vals.length} weeks, now ${show(m,m.now)}">`;if(m.has)s+=`<rect x="0" y="${Y(m.hi)}" width="${w}" height="${Math.max(1,Y(m.lo)-Y(m.hi))}" fill="var(--band)"/><line x1="0" x2="${w}" y1="${Y(m.c)}" y2="${Y(m.c)}" stroke="var(--grid)"/>`;
+ let seg=[];const fl=()=>{if(seg.length>1)s+=`<polyline fill="none" stroke="var(--spark)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${seg.join(' ')}"/>`;seg=[]};
+ vals.forEach((v,i)=>{if(v===null)fl();else seg.push(X(i).toFixed(1)+','+Y(v).toFixed(1))});fl();
+ const li=vals.length-1;if(vals[li]!==null)s+=`<circle cx="${X(li)}" cy="${Y(vals[li])}" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/>`;return s+'</svg>'}
+$('tiles').innerHTML=METRICS.map(m=>`<div class="card tile"><div class="lab">${esc(m.label)}</div><div class="val">${show(m,m.now)}<small aria-hidden="true">${arrow(m)}</small></div><div class="st">${stateTxt(m)}</div><div class="vs">${m.has?`usual ${show(m,m.c)} · range ${show(m,m.lo)} to ${show(m,m.hi)}`:'last 7 days'}</div>${spark(m)}<p class="note">${extra(m)}</p></div>`).join('');
+// ---------- chart registry with table twins ----------
+const CH={},TV={};
+const tbl=(head,rows)=>`<div class="tw"><table><tr>${head.map((h,i)=>`<th${i?' class="n"':''}>${esc(h)}</th>`).join('')}</tr>${rows.map(r=>`<tr>${r.map((c,i)=>`<td${i?' class="n"':''}>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>`;
+function paint(id){const el=$(id),c=CH[id];if(!c)return;el.innerHTML=TV[id]?c.table():c.svg(Math.max(280,el.clientWidth||600));if(!TV[id])bindTips(el);const b=document.querySelector(`[data-for="${id}"]`);b.setAttribute('aria-pressed',TV[id]?'true':'false');b.textContent=TV[id]?'Chart':'Table'}
+document.querySelectorAll('button.tbl').forEach(b=>b.onclick=()=>{TV[b.dataset.for]=!TV[b.dataset.for];paint(b.dataset.for)});
+const hit=(x,y,r,tx)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="transparent" data-t="${esc(tx)}" tabindex="0" aria-label="${esc(tx)}"/>`;
+// ---------- hero ----------
+let HM=METRICS[1];
+CH.hero={svg(cw){const m=HM,vw=cw,vh=Math.round(Math.max(240,Math.min(300,cw*.36))),L=40,R=64,T=14,B=28,pw=vw-L-R,ph=vh-T-B;const nn=nice(Math.max(m.max,m.has?m.hi:0,1)*1.05);const X=i=>L+i*pw/Math.max(1,m.vals.length-1),Y=v=>T+ph-ph*v/nn.max;
+ let s=`<svg viewBox="0 0 ${vw} ${vh}" role="img" aria-label="${esc(m.label)} by week">`;
+ for(let v=0;v<=nn.max+1e-9;v+=nn.step)s+=`<line x1="${L}" x2="${vw-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end">${Math.round(v*10)/10}${m.unit}</text>`;
+ if(m.has){s+=`<rect x="${L}" y="${Y(m.hi)}" width="${pw}" height="${Math.max(1,Y(m.lo)-Y(m.hi))}" fill="var(--band)"/><line x1="${L}" x2="${vw-R}" y1="${Y(m.c)}" y2="${Y(m.c)}" stroke="var(--muted)" stroke-width="1"/>`;
+  s+=`<text x="${L+6}" y="${Y(m.hi)-5}">usual range</text><text x="${vw-R}" y="${Y(m.c)-5}" text-anchor="end">usual ${show(m,m.c)}</text>`}
+ const step=vw<520?6:4;WK.forEach((w,i)=>{if((WK.length-1-i)%step===0)s+=`<text x="${X(i)}" y="${vh-8}" text-anchor="${i===WK.length-1?'end':'middle'}">${fmt(w.end)}</text>`});
+ let seg=[];const fl=()=>{if(seg.length>1)s+=`<polyline fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${seg.join(' ')}"/>`;seg=[]};
+ m.vals.forEach((v,i)=>{if(v===null)fl();else seg.push(X(i).toFixed(1)+','+Y(v).toFixed(1))});fl();
+ m.vals.forEach((v,i)=>{const lab=`Week to ${fmt(WK[i].end)}: ${v===null?'too few messages':show(m,v)}`;if(v===null){s+=hit(X(i),T+ph-8,12,lab);return}const last=i===m.vals.length-1,out=m.has&&(v>m.hi||v<m.lo);
+  s+=`<circle cx="${X(i)}" cy="${Y(v)}" r="${last?5:4}" fill="${last?'var(--s2)':'var(--s1)'}" stroke="var(--surface)" stroke-width="2"/>${out&&!last?`<circle cx="${X(i)}" cy="${Y(v)}" r="8" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`:''}${hit(X(i),Y(v),12,lab+(out?' (outside usual range)':''))}`});
+ const li=m.vals.length-1;if(m.now!==null)s+=`<text class="l" x="${X(li)+10}" y="${Y(m.now)+5}" text-anchor="start" style="font-weight:700;font-size:14px">${show(m,m.now)}</text>`;
+ return s+'</svg>'},
+ table(){const m=HM;return tbl(['Week to',m.label,'vs usual range'],WK.map((w,i)=>{const v=m.vals[i];return[fmt(w.end),show(m,v),v===null?'too few messages':!m.has?'not set yet':v>m.hi?'above':v<m.lo?'below':'inside']}))}};
+function heroTabs(){$('metricTabs').innerHTML=METRICS.map(x=>`<button type="button" aria-pressed="${x===HM}" data-k="${x.key}">${esc(x.label)}</button>`).join('');$('metricTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{HM=METRICS.find(x=>x.key===b.dataset.k);heroTabs();paint('hero')});
+ $('heroNote').innerHTML=`<b>Measures:</b> ${esc(HM.what)}. <b>Cannot tell you:</b> ${esc(D.indexes[HM.idx].cannot)}${HM.has?' Ringed dots are outside your usual range.':''}`}
+heroTabs();
+// ---------- mix ----------
+const KS=['directive','question','approval','challenge','context'],KL={directive:'Asked it to do something',question:'Asked a question',approval:'Agreed / go on',challenge:'Pushed back or corrected',context:'Shared context or opinion'};
+$('mixLeg').innerHTML=KS.map((k,i)=>`<span><i style="background:var(--s${i+1})"></i>${KL[k]}</span>`).join('');
+const MIXR=WK.map(w=>{const tot=sum(w.days,d=>d.prompts);return KS.map(k=>tot>=MINMSG?100*sum(w.days,d=>d.kinds[k]||0)/tot:null)});
+CH.mix={svg(cw){const vw=cw,vh=240,L=36,R=16,T=8,B=26,pw=vw-L-R,ph=vh-T-B;const X=i=>L+i*pw/Math.max(1,WK.length-1),Y=v=>T+ph-ph*v/100;
+ let s=`<svg viewBox="0 0 ${vw} ${vh}" role="img" aria-label="Weekly mix of message types">`;[0,50,100].forEach(v=>s+=`<line x1="${L}" x2="${vw-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end">${v}%</text>`);
+ const cum=MIXR.map(r=>{let c=0;return r.map(v=>v===null?null:(c+=v))});
+ KS.forEach((k,j)=>{let top=[],bot=[];WK.forEach((w,i)=>{if(cum[i][j]===null)return;top.push(X(i).toFixed(1)+','+Y(cum[i][j]).toFixed(1));bot.unshift(X(i).toFixed(1)+','+Y(j?cum[i][j-1]:0).toFixed(1))});
+  if(top.length>1)s+=`<polygon points="${top.concat(bot).join(' ')}" fill="var(--s${j+1})" stroke="var(--surface)" stroke-width="2" stroke-linejoin="round"/>`});
+ WK.forEach((w,i)=>{if((WK.length-1-i)%(cw<520?8:5)===0)s+=`<text x="${X(i)}" y="${vh-6}" text-anchor="${i===WK.length-1?'end':'middle'}">${fmt(w.end)}</text>`});
+ const bw=pw/Math.max(1,WK.length-1);WK.forEach((w,i)=>{const r=MIXR[i];if(r[0]===null)return;s+=`<rect x="${X(i)-bw/2}" y="${T}" width="${bw}" height="${ph}" fill="transparent" data-t="Week to ${fmt(w.end)}: ${KS.map((k,j)=>KL[k]+' '+Math.round(r[j])+'%').join(', ')}" tabindex="0"/>`});
+ return s+'</svg>'},
+ table(){return tbl(['Week to',...KS.map(k=>KL[k]+' %')],WK.map((w,i)=>[fmt(w.end),...MIXR[i].map(v=>v===null?'n/a':Math.round(v))]))}};
+// ---------- weekday x hour ----------
+const HRS=[...Array(16).keys()].map(i=>i+7),WD=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const HG=WD.map(()=>HRS.map(()=>0));ALL.forEach(d=>{const w=(new Date(d.date+'T12:00').getDay()+6)%7;HRS.forEach((h,i)=>HG[w][i]+=d.hours_prompts[h]||0)});
+const HMX=Math.max(1,...HG.flat());const ramp=(v,mx)=>v===null||v===undefined?'var(--gap)':v<=mx*.02?'var(--h0)':v<=mx*.25?'var(--h1)':v<=mx*.5?'var(--h2)':v<=mx*.75?'var(--h3)':'var(--h4)';
+const rampKey=(a,b)=>`<div class="ramp"><span>${a}</span>${['--h0','--h1','--h2','--h3','--h4'].map(c=>`<i style="background:var(${c})"></i>`).join('')}<span>${b}</span></div>`;
+const AQ=WD.map(()=>HRS.map(()=>0)),AT=WD.map(()=>HRS.map(()=>0));
+ALL.forEach(d=>{const w=(new Date(d.date+'T12:00').getDay()+6)%7;HRS.forEach((h,i)=>{AQ[w][i]+=(d.hours_quick||{})[h]||0;AT[w][i]+=(d.hours_approvals||{})[h]||0})});
+const MINCELL=5;
+let HHM='msgs';
+const rate=(r,i)=>AT[r][i]>=MINCELL?100*AQ[r][i]/AT[r][i]:null;
+CH.heat={svg(cw){const q=HHM==='quick',lab=34,cell=Math.floor((cw-lab)/HRS.length),ch=Math.max(22,Math.min(30,cell));let s=`<svg viewBox="0 0 ${cw} ${WD.length*ch+22}" role="img" aria-label="${q?'Quick approval share':'Messages'} by weekday and hour">`;
+ HRS.forEach((h,i)=>{if(i%(cw<420?3:2)===0)s+=`<text x="${lab+i*cell+cell/2}" y="12" text-anchor="middle">${h}h</text>`});
+ WD.forEach((n,r)=>{s+=`<text class="l" x="0" y="${22+r*ch+ch/2+4}">${n}</text>`;HRS.forEach((h,i)=>{let fill,tx;
+  if(q){const v=rate(r,i);fill=v===null?'var(--gap)':ramp(v,100);tx=AT[r][i]?`${n} ${h}h: ${AQ[r][i]} of ${AT[r][i]} approvals after file changes within 15 seconds`+(v===null?' (too few to compare)':` (${f1(v)}%)`):`${n} ${h}h: no timed approvals after file changes`}
+  else{const v=HG[r][i];fill=ramp(v,HMX);tx=`${n} ${h}h: ${v} messages`}
+  s+=`<rect x="${lab+i*cell+1}" y="${18+r*ch+1}" width="${cell-2}" height="${ch-2}" rx="3" fill="${fill}" data-t="${tx}" tabindex="0" aria-label="${tx}"/>`})});
+ return s+'</svg>'+(q?rampKey('0% quick','100% quick'):rampKey('fewer','more messages'))},
+ table(){return HHM==='quick'?tbl(['Day',...HRS.map(h=>h+'h')],WD.map((n,r)=>[n,...HRS.map((h,i)=>AT[r][i]?AQ[r][i]+'/'+AT[r][i]:'-')]))+'<p class="note">Quick / timed approvals after file changes.</p>':tbl(['Day',...HRS.map(h=>h+'h')],WD.map((n,r)=>[n,...HG[r]]))}};
+function heatTabs(){const q=HHM==='quick';$('heatSub').textContent=q?'Share of approvals after file changes that came within 15 seconds, by weekday and hour.':'All messages by weekday and hour.';
+ $('heatNote').textContent=q?`Grey: fewer than ${MINCELL} timed approvals in that hour, too few to compare. Cursor approvals cannot be timed.`:'';
+ $('heatTabs').innerHTML=[['msgs','Messages'],['quick','Quick approvals']].map(([k,l])=>`<button type="button" aria-pressed="${k===HHM}" data-k="${k}">${l}</button>`).join('');
+ $('heatTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{HHM=b.dataset.k;heatTabs();paint('heat')})}
+heatTabs();
+// ---------- scatter ----------
+const PTS=ALL.filter(d=>d.prompts>=MINMSG).map(d=>({x:d.ai_actions/d.prompts,y:d.idx.pushback_pct,date:d.date,recent:t(d.date)>LAST-7*DAY}));
+CH.sc={svg(cw){if(PTS.length<3)return'<p class="note">Needs a few more days with at least 10 messages.</p>';const vw=cw,vh=Math.round(Math.min(280,Math.max(220,cw*.55))),L=40,R=12,T=8,B=40,pw=vw-L-R,ph=vh-T-B;const nx=nice(Math.max(...PTS.map(p=>p.x)),4),ny=nice(Math.max(1,...PTS.map(p=>p.y)),4);const X=v=>L+pw*v/nx.max,Y=v=>T+ph-ph*v/ny.max;
+ let s=`<svg viewBox="0 0 ${vw} ${vh}" role="img" aria-label="Daily AI actions per message against pushback">`;
+ for(let v=0;v<=ny.max+1e-9;v+=ny.step)s+=`<line x1="${L}" x2="${vw-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end">${v}%</text>`;
+ for(let v=0;v<=nx.max+1e-9;v+=nx.step)s+=`<text x="${X(v)}" y="${vh-22}" text-anchor="middle">${v}</text>`;s+=`<text x="${L+pw/2}" y="${vh-4}" text-anchor="middle">AI actions per message →</text>`;
+ PTS.filter(p=>!p.recent).forEach(p=>s+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="4" fill="var(--s1)" fill-opacity=".6" stroke="var(--surface)" stroke-width="1.5"/>`);
+ PTS.filter(p=>p.recent).forEach(p=>s+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/>`);
+ PTS.forEach(p=>s+=hit(X(p.x),Y(p.y),9,`${fmt(p.date)}: ${f1(p.x)} actions per message, ${f1(p.y)}% pushback`));
+ return s+'</svg><div class="legend"><span><i style="background:var(--s1)"></i>Earlier days</span><span><i style="background:var(--s2)"></i>Last 7 days</span><span>Up = more pushback</span></div>'},
+ table(){return tbl(['Day','Actions per message','Pushback %'],PTS.slice(-30).reverse().map(p=>[fmt(p.date),f1(p.x),f1(p.y)]))+'<p class="note">Last 30 days shown.</p>'}};
+(function(){if(PTS.length<5){$('scNote').textContent='';return}const xs=PTS.map(p=>p.x).sort((a,b)=>a-b),ys=PTS.map(p=>p.y).sort((a,b)=>a-b),mx=xs[xs.length>>1],my=ys[ys.length>>1];const hi=PTS.filter(p=>p.x>mx),lo=hi.filter(p=>p.y<my).length;$('scNote').textContent=`On ${lo} of ${hi.length} days when the AI did more per message than usual, pushback was below your median (${f1(my)}%). A pattern, not a cause.`})();
+// ---------- calendar ----------
+let CM='active';
+const CALM={active:{label:'Active minutes',f:d=>d.active_minutes,u:' min'},msgs:{label:'Messages',f:d=>d.prompts,u:' messages'},push:{label:'Pushback',f:d=>d.prompts>=MINMSG?d.idx.pushback_pct:null,u:'% pushback'},apm:{label:'Actions per message',f:d=>d.prompts>=MINMSG?d.idx.actions_per_prompt:null,u:' actions per message'}};
+CH.cal={svg(cw){const M=CALM[CM],map={};ALL.forEach(d=>map[d.date]=M.f(d));const mx=Math.max(1,...Object.values(map).filter(v=>v!==null));const nW=27,lab=cw<420?0:30,cell=Math.floor((cw-lab)/nW),cs=cell-3;const endDow=(new Date(LAST).getDay()+6)%7,startT=LAST-(26*7+endDow)*DAY;
+ let s=`<svg viewBox="0 0 ${cw} ${7*cell+20}" role="img" aria-label="Daily ${esc(M.label)}, last 27 weeks">`;if(lab)['Mon','Wed','Fri'].forEach((n,i)=>s+=`<text x="0" y="${18+i*2*cell+cs-3}">${n}</text>`);
+ let lm=-1;for(let w=0;w<nW;w++)for(let r=0;r<7;r++){const ts=startT+(w*7+r)*DAY;if(ts>LAST)continue;const dt=new Date(ts);const iso=new Date(ts-dt.getTimezoneOffset()*6e4).toISOString().slice(0,10);const v=map[iso];
+  if(r===0&&dt.getMonth()!==lm){lm=dt.getMonth();s+=`<text x="${lab+w*cell}" y="11">${dt.toLocaleDateString('en-GB',{month:'short'})}</text>`}
+  const lb=`${fmt(iso)}: ${v===null||v===undefined?'no data (too few messages)':f1(v)+M.u}`;s+=`<rect x="${lab+w*cell}" y="${16+r*cell}" width="${cs}" height="${cs}" rx="3" fill="${ramp(v,mx)}" data-t="${esc(lb)}" tabindex="0" aria-label="${esc(lb)}"/>`}
+ return s+'</svg>'+rampKey('less','more')+'<p class="note" style="margin-top:2px">Grey: no activity, or too few messages to compute.</p>'},
+ table(){const M=CALM[CM];return tbl(['Day',M.label],ALL.slice(-30).reverse().map(d=>{const v=M.f(d);return[fmt(d.date),v===null?'n/a':f1(v)]}))+'<p class="note">Last 30 active days shown.</p>'}};
+function calTabs(){$('calTabs').innerHTML=Object.entries(CALM).map(([k,x])=>`<button type="button" aria-pressed="${k===CM}" data-k="${k}">${x.label}</button>`).join('');$('calTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{CM=b.dataset.k;calTabs();paint('cal')})}
+calTabs();
+// ---------- details ----------
+$('covtab').innerHTML='<tr><th>Tool</th><th>From</th><th>To</th><th class="n">Days</th><th class="n">Messages</th></tr>'+D.coverage.map(c=>`<tr><td>${esc(c.tool)}</td><td>${c.first}</td><td>${c.last}</td><td class="n">${c.days}</td><td class="n">${c.messages}</td></tr>${c.note?`<tr><td colspan="5" class="note" style="padding-top:0">${esc(c.note)}</td></tr>`:''}`).join('');
+$('notread').innerHTML='<b>Not in these numbers:</b> '+esc(D.not_read.join(' '));
+$('tok').innerHTML='<tr><th>Model</th><th class="n">Messages</th><th class="n">Output</th><th class="n">New input</th><th class="n">Cached</th></tr>'+Object.entries(D.tokens).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${v.messages}</td><td class="n">${v.output.toLocaleString()}</td><td class="n">${v.input.toLocaleString()}</td><td class="n">${v.cached.toLocaleString()}</td></tr>`).join('');
+$('daytab').innerHTML='<tr><th>Day</th><th>Tools</th><th class="n">Messages</th><th class="n">Active min</th><th class="n">Pushback</th><th class="n">Questions</th><th class="n">Agreements</th><th class="n">Quick approvals</th><th class="n">Actions/message</th></tr>'+ALL.slice().reverse().map(d=>`<tr><td>${fmt(d.date)}</td><td>${esc(d.tools.join(', '))}</td><td class="n">${d.prompts}</td><td class="n">${d.active_minutes}</td><td class="n">${f1(d.idx.pushback_pct)}%</td><td class="n">${f1(d.idx.question_pct)}%</td><td class="n">${f1(d.idx.approval_pct)}%</td><td class="n">${d.idx.approvals_after_writes?d.idx.quick_approvals+'/'+d.idx.approvals_after_writes:'-'}</td><td class="n">${f1(d.idx.actions_per_prompt)}</td></tr>`).join('');
+// ---------- share card and notes ----------
 function card(){const inc=$('incnote').checked;const last=D.feedback.slice(-7).map(x=>{const o={day:x.day,match:x.match,numbers:x.numbers};if(inc)o.note=x.note||'';return o});
  return last.length?JSON.stringify(last,null,2):'Nothing to share yet. Answer "Does this match how your day felt?" at the end of the day summary first.'}
 $('card').value=card();$('incnote').onchange=()=>{$('card').value=card()};
-$('copy').onclick=()=>{const t=$('card');t.select();let ok=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t.value);ok=true}else{ok=document.execCommand('copy')}}catch(e){try{ok=document.execCommand('copy')}catch(e2){}}$('copied').textContent=ok?'Copied.':'Select the text above and copy it yourself.'};
+$('copy').onclick=()=>{const tx=$('card');tx.select();let ok=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tx.value);ok=true}else{ok=document.execCommand('copy')}}catch(e){try{ok=document.execCommand('copy')}catch(e2){}}$('copied').textContent=ok?'Copied.':'Select the text above and copy it yourself.'};
 $('fb').innerHTML=D.feedback.length?'<tr><th>Day</th><th>Did it match?</th><th>Your note</th></tr>'+D.feedback.map(x=>`<tr><td>${esc(x.day)}</td><td>${esc(x.match)}</td><td>${esc(x.note||'')}</td></tr>`).join(''):'<tr><td>None yet. Answer the question at the end of the day summary.</td></tr>';
+// ---------- paint ----------
+const paintAll=()=>Object.keys(CH).forEach(paint);paintAll();
+let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(paintAll,150)});
+}
+if(ALL.length){main()}else{$('body').innerHTML='<div class="card"><p style="margin:0">No AI activity found. Run <code>python3 mirror.py sources</code> to see what Mirror can read.</p></div>'}
 </script></body></html>
