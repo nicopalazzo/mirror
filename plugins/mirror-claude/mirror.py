@@ -29,6 +29,7 @@ from mirror_core.render_text import day_text, week_text, explain_text
 
 
 CONSENT_VERSION = 2  # bumped when Mirror started reading Cursor chats, so everyone is asked again
+QUIZ_MIN_MESSAGES = 30  # the first report only opens with the quiz when there are enough messages to compare fairly
 
 
 def _utf8():
@@ -91,10 +92,24 @@ def _consent(args, roots):
         print("Not a terminal, so I can't ask. Re-run with --yes to agree.", file=sys.stderr)
         return False
     if ok:
+        if "consented_at" not in cfg and "quiz" not in cfg:
+            cfg["quiz"] = "pending"  # new install only: people who already saw their numbers are not quizzed
         cfg["consent_version"] = CONSENT_VERSION
         cfg["consented_at"] = datetime.now().isoformat(timespec="seconds")
         store.save_config(cfg)
     return ok
+
+
+def _quiz_due(all_days):
+    engaged = sum(s["_counts"]["engaged"] for s in all_days.values())
+    return store.quiz_pending() and engaged >= QUIZ_MIN_MESSAGES
+
+
+def _quiz_hold():
+    print("Your first report opens with a short quiz: guess how you work with AI, then see what Mirror counted.")
+    print("Your numbers are held back until you have guessed.")
+    print("  Quiz, then report:        python3 mirror.py report --open")
+    print("  Skip the quiz, see now:   add --skip-quiz to this command")
 
 
 def _pick_day(args, all_days):
@@ -117,6 +132,9 @@ def cmd_sources(args):
 def cmd_day(args):
     turns, actions, tokens, missing, roots = _load(args)
     all_days = by_day(turns, actions, args.quick_seconds)
+    if _quiz_due(all_days):
+        _quiz_hold()
+        return 0
     d = _pick_day(args, all_days)
     if d not in all_days:
         print(f"No AI activity found for {d.isoformat()}.")
@@ -143,6 +161,9 @@ def cmd_day(args):
 def cmd_week(args):
     turns, actions, tokens, missing, roots = _load(args)
     all_days = by_day(turns, actions, args.quick_seconds)
+    if _quiz_due(all_days):
+        _quiz_hold()
+        return 0
     end = _pick_day(args, all_days)
     print(week_text(all_days, end))
     return 0
@@ -162,7 +183,10 @@ def cmd_report(args):
         cov.setdefault(a.tool, {"tool": a.tool, "dates": set(), "messages": 0})["dates"].add(a.ts.date())
     coverage = [{"tool": v["tool"], "first": min(v["dates"]).isoformat(), "last": max(v["dates"]).isoformat(),
                  "days": len(v["dates"]), "messages": v["messages"]} for v in cov.values() if v["dates"]]
-    build(all_days, store.read_feedback(), tokens, out, coverage)
+    quiz = _quiz_due(all_days)
+    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz)
+    if quiz:
+        store.set_quiz("shown")  # the quiz is in this page only; Mirror keeps no copy of the guesses
     print("Report saved in your Mirror folder: " + str(out))
     print("Open it again any time with the 'Mirror Report' launcher, or: python3 mirror.py report --open")
     if args.open:
@@ -276,6 +300,7 @@ def main(argv=None):
     common.add_argument("--codex-dir", help="Codex folder (default ~/.codex)")
     common.add_argument("--cursor-dir", help="Cursor folder (default ~/.cursor)")
     common.add_argument("--quick-seconds", type=int, default=QUICK_SECONDS, help="what counts as a quick approval (default 15)")
+    common.add_argument("--skip-quiz", action="store_true", help="skip the one-time quiz before your first report")
     common.add_argument("--day", help="YYYY-MM-DD (default today)")
     common.add_argument("--yesterday", action="store_true")
     sub = p.add_subparsers(dest="cmd")
@@ -314,6 +339,8 @@ def main(argv=None):
         return cmd_doctor(args)
     if not _consent(args, _dirs(args)):
         return 1
+    if args.skip_quiz and store.quiz_pending():
+        store.set_quiz("skipped")
     return {"day": cmd_day, "week": cmd_week, "report": cmd_report, "doctor": cmd_doctor, "feedback": cmd_feedback}[args.cmd](args)
 
 

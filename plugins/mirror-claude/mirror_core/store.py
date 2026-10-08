@@ -37,6 +37,17 @@ def save_config(cfg):
     _cfg_path().write_text(json.dumps(cfg, indent=2), encoding="utf-8")
 
 
+def quiz_pending() -> bool:
+    """True only for a new install whose first report has not been built yet. Stores a word, never your guesses."""
+    return load_config().get("quiz") == "pending"
+
+
+def set_quiz(state):
+    cfg = load_config()
+    cfg["quiz"] = state
+    save_config(cfg)
+
+
 def add_feedback(entry):
     home().mkdir(parents=True, exist_ok=True)
     with open(home() / "feedback.jsonl", "a", encoding="utf-8") as fh:
