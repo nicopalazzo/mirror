@@ -24,6 +24,7 @@ Plugin version 0.3.1.
 
 ### Changed
 
+- The report is mobile first: 44 px tap targets, text of 14 px or more, every table in a scroll wrapper, tap-to-read chart marks with a readout line, 3-hour bins in the weekday-by-hour heatmap and 12 weeks in the calendar on a phone, compact tiles, and the supporting charts behind "More charts". Design rules for contributors are in `CONTRIBUTING.md`.
 - Nudge copy says what happened, then one action, then the controls.
 - The HTML report is now a dashboard: a "What changed" block, four index tiles with sparklines, a weekly chart with your usual range, and four supporting charts, each with a table view. "Usual" comes from your first 12 weeks (average plus or minus 2.66 times the average week-to-week change); a point outside it, or 8 weeks in a row on one side, counts as a signal. With fewer than 6 weeks of data it compares with last week instead. The 7/14/30-day selector is gone; the report shows the last 26 weeks.
 

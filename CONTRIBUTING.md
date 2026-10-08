@@ -13,6 +13,19 @@ These protect the promise in the README. A change that breaks one is not merged.
 - **Standard library only, Python 3.8+.**
 - If a change touches what Mirror reads or stores, update [THREAT-MODEL.md](THREAT-MODEL.md) in the same PR.
 
+## Design rules: mobile first
+
+Every page a person opens (the quiz, the reveal, the report dashboard, the details tables) is designed for a phone first. Check each one, not only the screen you just built.
+
+- **Write the phone layout as the base** and widen it with `min-width` media queries. Never shrink a desktop layout with `max-width` patches.
+- **Check at 375 px wide** before you call a page done: no sideways scroll on the page, nothing cut off.
+- **Tap targets are at least 44 px high.** A mouse-only shrink is allowed with `@media (hover:hover) and (pointer:fine)`.
+- **Text:** body 16 px; notes, tables and legends at least 14 px; chart labels at least 12 px.
+- **Every table sits in a `.tw` scroll wrapper.**
+- **Collapsible parts show a chevron** so people can see they open. Long pages put supporting content behind one tap on a phone and open it on wide screens.
+- **Charts must work with a thumb:** no hover-only information, and marks big enough to tap or a readout line under the chart.
+- Look at it with synthetic data only, never real conversations.
+
 ## Commits
 
 Use [Conventional Commits](https://www.conventionalcommits.org/). Conventions adopted on 30 Sep 2026; earlier commits predate them.

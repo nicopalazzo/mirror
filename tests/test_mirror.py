@@ -277,6 +277,36 @@ class Feedback(Base):
         self.assertNotIn("PRIVATE NOTE", card)
 
 
+class ReportMobileFirst(unittest.TestCase):
+    """Cheap guards for the mobile-first rules in CONTRIBUTING.md. A real check at 375 px is still done by eye."""
+    TPL = (ROOT / "mirror_core" / "report_template.html").read_text(encoding="utf-8")
+
+    def test_viewport_meta_and_phone_sized_buttons(self):
+        self.assertIn('name="viewport"', self.TPL)
+        self.assertRegex(self.TPL, r"button\{[^}]*min-height:44px")
+
+    def test_every_report_table_is_in_a_scroll_wrapper(self):
+        import re
+        for m in re.finditer(r'<table id="(\w+)"', self.TPL):
+            before = self.TPL[:m.start()].rsplit('<div class="tw"', 1)
+            self.assertEqual(len(before), 2, m.group(1) + " is not wrapped")
+            self.assertNotIn("</div>", before[1].split(">", 1)[1], m.group(1) + " is not wrapped")
+
+    def test_charts_are_tappable_on_a_phone(self):
+        self.assertIn('class="note readout"', self.TPL.replace("className='note readout'", 'class="note readout"'))
+        self.assertIn("B=cw<520?", self.TPL)  # heatmap uses 3-hour bins on a narrow screen
+        self.assertIn("nW=cw<520?12:27", self.TPL)  # calendar shows 12 weeks on a narrow screen
+        self.assertIn('<details id="more">', self.TPL)
+
+    def test_report_text_is_not_below_14px_except_chart_labels(self):
+        import re
+        css = self.TPL.split("</style>")[0]
+        small = [m for m in re.findall(r"([^{}]+)\{[^}]*font-size:(\d+)px", css) if int(m[1]) < 14]
+        for sel, px in small:
+            self.assertTrue(any(k in sel for k in ("svg text", ".eyebrow", ".ramp")), sel + " " + px + "px")
+
+
+
 class Docs(unittest.TestCase):
     def test_skill_frontmatter(self):
         s = (ROOT / "SKILL.md").read_text(encoding="utf-8")

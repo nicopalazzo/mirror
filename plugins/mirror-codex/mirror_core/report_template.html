@@ -12,34 +12,40 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,
 .wrap{max-width:1120px;margin:0 auto;padding:24px 16px 72px}
 .top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin-bottom:16px}
 h1{font-size:24px;margin:0;letter-spacing:-.01em}h2{font-size:17px;margin:0}
-.sub{color:var(--ink2);font-size:14px;margin:2px 0 0}
-.badge{font-size:13px;color:var(--ink2);border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 12px}
-button{font:inherit;font-size:13px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 12px;cursor:pointer;min-height:32px}
+.sub{color:var(--ink2);font-size:15px;margin:2px 0 0}
+.badge{font-size:14px;color:var(--ink2);border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 12px}
+button{font:inherit;font-size:15px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer;min-height:44px}
 button[aria-pressed="true"]{background:var(--s1);color:#fff;border-color:var(--s1)}
 button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
 .grid{display:grid;gap:14px;margin-top:14px}.tiles{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}.two{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
 .hd{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:6px}
 .eyebrow{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
 .tile .lab{font-size:14px;font-weight:600;color:var(--ink2)}
-.tile .val{font-size:40px;font-weight:700;line-height:1.05;margin:4px 0 2px;letter-spacing:-.02em}
+.tile .val{font-size:34px;font-weight:700;line-height:1.05;margin:4px 0 2px;letter-spacing:-.02em}
 .tile .val small{font-size:20px;font-weight:600;margin-left:4px}
-.tile .st{font-size:14px;font-weight:600}.tile .vs{font-size:13px;color:var(--ink2);margin:2px 0 6px}
+.tile .st{font-size:14px;font-weight:600}.tile .vs{font-size:14px;color:var(--ink2);margin:2px 0 6px}
 .sigs{display:grid;gap:10px}.sig{display:flex;gap:12px;align-items:flex-start}
 .sig .ic{flex:none;width:28px;height:28px;border-radius:50%;border:2px solid var(--ink);display:grid;place-items:center;font-weight:700;font-size:15px}
 .sig p{margin:0}.sig .q{color:var(--ink2);font-size:14px;margin-top:2px}
-.ctl{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
+.ctl{display:flex;flex-wrap:nowrap;gap:8px;margin:6px 0 8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}.ctl button{flex:none}
+@media (min-width:700px){.ctl{flex-wrap:wrap;overflow:visible}}
+.readout{min-height:44px;color:var(--ink2)}
+summary::-webkit-details-marker{display:none}summary::before{content:"\25B8";display:inline-block;margin-right:10px;transition:transform .15s}details[open]>summary::before{transform:rotate(90deg)}
+.tmore{margin-top:6px}.tmore summary{font-size:14px;color:var(--ink2)}
+#more>summary{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:0 16px}
 .chart{min-height:40px}
 svg{display:block;width:100%;height:auto}svg text{fill:var(--ink2);font-size:12px}svg .l{fill:var(--ink)}svg [tabindex]:focus{outline:none}svg [tabindex]:focus-visible{stroke:var(--ink);stroke-width:2}
-.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--ink2);margin:2px 0 6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:14px;color:var(--ink2);margin:2px 0 6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
 .ramp{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);margin-top:6px}.ramp i{width:14px;height:10px;border-radius:2px;display:inline-block}
-.note{color:var(--muted);font-size:13px;margin:8px 0 0}.warn{border-left:3px solid var(--s4);padding-left:10px}
-#tip{position:fixed;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.2);opacity:0;z-index:20;max-width:280px}
-details{margin-top:14px}summary{cursor:pointer;font-weight:600;font-size:14px}
-table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.note{color:var(--muted);font-size:14px;margin:8px 0 0}.warn{border-left:3px solid var(--s4);padding-left:10px}
+#tip{position:fixed;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.2);opacity:0;z-index:20;max-width:280px}
+details{margin-top:14px}summary{cursor:pointer;font-weight:600;font-size:16px;min-height:44px;display:flex;align-items:center}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .tw{overflow:auto;max-height:300px}
-textarea{width:100%;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
-@media (max-width:520px){.tile .val{font-size:34px}.card{padding:14px}}
+textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
+@media (min-width:521px){.tile .val{font-size:40px}.card{padding:16px 20px}}
+@media (hover:hover) and (pointer:fine){button{min-height:34px;padding:5px 12px}summary{min-height:32px}}
 </style></head><body><div class="wrap" id="wrap">
 <div class="top"><div><h1>Mirror</h1><p class="sub" id="range"></p></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="badge" id="cov"></span><button id="theme" type="button">Theme</button></div></div>
 <p class="note" id="disc" style="margin:0 0 12px"></p>
@@ -51,24 +57,24 @@ textarea{width:100%;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 <div class="card" style="margin-top:14px"><div class="hd"><div><h2>Week by week</h2><p class="sub" id="heroSub"></p></div><button class="tbl" data-for="hero" type="button" aria-pressed="false">Table</button></div>
 <div class="ctl" id="metricTabs" role="group" aria-label="Metric"></div><div class="chart" id="hero"></div><p class="note" id="heroNote"></p></div>
 
-<div class="grid two">
+<details id="more"><summary>More charts: mix, hours, scatter, every day</summary><div class="grid two" style="margin-top:8px">
 <div class="card"><div class="hd"><div><h2>What I said, as a share</h2><p class="sub">Weekly mix of message types, as shares so busy weeks do not dominate. Labels come from simple rules and are sometimes wrong.</p></div><button class="tbl" data-for="mix" type="button" aria-pressed="false">Table</button></div><div class="legend" id="mixLeg"></div><div class="chart" id="mix"></div></div>
 <div class="card"><div class="hd"><div><h2>When I send messages</h2><p class="sub" id="heatSub"></p></div><button class="tbl" data-for="heat" type="button" aria-pressed="false">Table</button></div><div class="ctl" id="heatTabs" role="group" aria-label="Heatmap metric"></div><div class="chart" id="heat"></div><p class="note" id="heatNote"></p></div>
 <div class="card"><div class="hd"><div><h2>More handed over, less pushback?</h2><p class="sub">One dot per day with enough messages. Orange: the last 7 days.</p></div><button class="tbl" data-for="sc" type="button" aria-pressed="false">Table</button></div><div class="chart" id="sc"></div><p class="note" id="scNote"></p></div>
-<div class="card"><div class="hd"><div><h2>Every day</h2><p class="sub">One square per day, last 27 weeks.</p></div><button class="tbl" data-for="cal" type="button" aria-pressed="false">Table</button></div><div class="ctl" id="calTabs" role="group" aria-label="Calendar metric"></div><div class="chart" id="cal"></div></div>
-</div>
+<div class="card"><div class="hd"><div><h2>Every day</h2><p class="sub" id="calSub">One square per day, last 27 weeks.</p></div><button class="tbl" data-for="cal" type="button" aria-pressed="false">Table</button></div><div class="ctl" id="calTabs" role="group" aria-label="Calendar metric"></div><div class="chart" id="cal"></div></div>
+</div></details>
 
 <details><summary>Details: what is covered, tokens, every day</summary>
-<div class="card" style="margin-top:8px"><p class="note warn" style="margin-top:0"><b>Read this first.</b> Mirror can only count what it can read, so this shows what is in these numbers and what is not.</p><table id="covtab" style="margin-top:8px"></table><p class="note warn" id="notread"></p>
-<h3 style="font-size:15px;margin:16px 0 4px">Tokens</h3><table id="tok"></table><p class="note">Counts the tools record themselves. Cached means context the tool re-read, not new writing. Not every tool records tokens.</p>
+<div class="card" style="margin-top:8px"><p class="note warn" style="margin-top:0"><b>Read this first.</b> Mirror can only count what it can read, so this shows what is in these numbers and what is not.</p><div class="tw" style="margin-top:8px"><table id="covtab"></table></div><p class="note warn" id="notread"></p>
+<h3 style="font-size:15px;margin:16px 0 4px">Tokens</h3><div class="tw"><table id="tok"></table></div><p class="note">Counts the tools record themselves. Cached means context the tool re-read, not new writing. Not every tool records tokens.</p>
 <h3 style="font-size:15px;margin:16px 0 4px">Day by day</h3><div class="tw"><table id="daytab"></table></div>
 <p class="note"><b>How "usual" is set.</b> The line and band come from your first 12 weeks with enough messages (process-behavior method: the average, plus or minus 2.66 times the average week-to-week change). A point outside the band, or 8 weeks in a row on one side of the line, is more than ordinary wobble. It says something changed, not whether that is good. They appear once you have 6 such weeks.</p></div></details>
 
 <details id="shareBox"><summary>Numbers to share, if you choose</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">What <code>share-card</code> prints: numbers only, never your messages. Mirror sends nothing; copying is your decision.</p>
-<p><label><input type="checkbox" id="incnote"> Include my notes</label></p><textarea id="card" readonly rows="10"></textarea>
+<p><label style="display:flex;align-items:center;gap:10px;min-height:44px"><input type="checkbox" id="incnote" style="width:22px;height:22px;margin:0"> Include my notes</label></p><textarea id="card" readonly rows="10"></textarea>
 <p><button id="copy" type="button">Copy</button> <span id="copied" class="note"></span></p></div></details>
 
-<details><summary>My notes on how well this matched</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">Your answers to "Does this match how your day felt?", kept on this computer.</p><table id="fb"></table></div></details>
+<details><summary>My notes on how well this matched</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">Your answers to "Does this match how your day felt?", kept on this computer.</p><div class="tw"><table id="fb"></table></div></div></details>
 </div></div><div id="tip"></div>
 <script>
 const D=/*__DATA__*/null;
@@ -76,10 +82,11 @@ const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>"]/g
 $('disc').textContent=D.disclaimer;
 $('theme').onclick=()=>{const r=document.documentElement;const dark=(r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'))==='dark';r.dataset.theme=dark?'light':'dark'};
 const tip=$('tip');const showTip=(x,y,h)=>{tip.innerHTML=h;tip.style.opacity=1;tip.style.left=Math.max(4,Math.min(x+14,innerWidth-290))+'px';tip.style.top=(y+14)+'px'};const hideTip=()=>{tip.style.opacity=0};
-function bindTips(el){el.querySelectorAll('[data-t]').forEach(r=>{r.onmousemove=e=>showTip(e.clientX,e.clientY,esc(r.dataset.t));r.onmouseleave=hideTip;r.onclick=e=>{showTip(e.clientX,e.clientY,esc(r.dataset.t));setTimeout(hideTip,2500)};r.onfocus=()=>{const b=r.getBoundingClientRect();showTip(b.left,b.top,esc(r.dataset.t))};r.onblur=hideTip})}
+function readoutFor(el){let ro=el.nextElementSibling;if(!ro||!ro.classList.contains('readout')){ro=document.createElement('p');ro.className='note readout';ro.setAttribute('aria-live','polite');el.after(ro)}return ro}
+function bindTips(el){const ro=readoutFor(el),mouse=matchMedia('(hover:hover)').matches;ro.hidden=false;ro.textContent='Tap a mark for its details.';el.querySelectorAll('[data-t]').forEach(r=>{const say=()=>{ro.textContent=r.dataset.t};r.onmousemove=e=>{if(mouse)showTip(e.clientX,e.clientY,esc(r.dataset.t))};r.onmouseleave=hideTip;r.onclick=e=>{say();if(mouse){showTip(e.clientX,e.clientY,esc(r.dataset.t));setTimeout(hideTip,2500)}};r.onfocus=()=>{say();if(mouse){const b=r.getBoundingClientRect();showTip(b.left,b.top,esc(r.dataset.t))}};r.onblur=hideTip})}
 const ALL=D.days.slice().sort((a,b)=>a.date<b.date?-1:1);
 function main(){
-const MINMSG=10,DAY=864e5;
+const MINMSG=10,DAY=864e5;const WIDE=matchMedia('(min-width:700px)').matches;$('more').open=WIDE;
 const t=d=>new Date(d+'T12:00').getTime();const LAST=t(ALL[ALL.length-1].date);
 const fmt=d=>new Date(typeof d==='number'?d:t(d)).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
 const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
@@ -123,11 +130,11 @@ function spark(m){const w=220,h=40,vals=m.vals.slice(-12),mx=Math.max(...vals.fi
  let seg=[];const fl=()=>{if(seg.length>1)s+=`<polyline fill="none" stroke="var(--spark)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${seg.join(' ')}"/>`;seg=[]};
  vals.forEach((v,i)=>{if(v===null)fl();else seg.push(X(i).toFixed(1)+','+Y(v).toFixed(1))});fl();
  const li=vals.length-1;if(vals[li]!==null)s+=`<circle cx="${X(li)}" cy="${Y(vals[li])}" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/>`;return s+'</svg>'}
-$('tiles').innerHTML=METRICS.map(m=>`<div class="card tile"><div class="lab">${esc(m.label)}</div><div class="val">${show(m,m.now)}<small aria-hidden="true">${arrow(m)}</small></div><div class="st">${stateTxt(m)}</div><div class="vs">${m.has?`usual ${show(m,m.c)} · range ${show(m,m.lo)} to ${show(m,m.hi)}`:'last 7 days'}</div>${spark(m)}<p class="note">${extra(m)}</p></div>`).join('');
+$('tiles').innerHTML=METRICS.map(m=>`<div class="card tile"><div class="lab">${esc(m.label)}</div><div class="val">${show(m,m.now)}<small aria-hidden="true">${arrow(m)}</small></div><div class="st">${stateTxt(m)}</div><div class="vs">${m.has?`usual ${show(m,m.c)} · range ${show(m,m.lo)} to ${show(m,m.hi)}`:'last 7 days'}</div>${spark(m)}<details class="tmore"><summary>What this is made of</summary><p class="note">${extra(m)}</p></details></div>`).join('');document.querySelectorAll('.tmore').forEach(d=>d.open=WIDE);
 // ---------- chart registry with table twins ----------
 const CH={},TV={};
 const tbl=(head,rows)=>`<div class="tw"><table><tr>${head.map((h,i)=>`<th${i?' class="n"':''}>${esc(h)}</th>`).join('')}</tr>${rows.map(r=>`<tr>${r.map((c,i)=>`<td${i?' class="n"':''}>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>`;
-function paint(id){const el=$(id),c=CH[id];if(!c)return;el.innerHTML=TV[id]?c.table():c.svg(Math.max(280,el.clientWidth||600));if(!TV[id])bindTips(el);const b=document.querySelector(`[data-for="${id}"]`);b.setAttribute('aria-pressed',TV[id]?'true':'false');b.textContent=TV[id]?'Chart':'Table'}
+function paint(id){const el=$(id),c=CH[id];if(!c)return;el.innerHTML=TV[id]?c.table():c.svg(Math.max(280,el.clientWidth||600));if(!TV[id])bindTips(el);else{const ro=el.nextElementSibling;if(ro&&ro.classList.contains('readout'))ro.hidden=true}const b=document.querySelector(`[data-for="${id}"]`);b.setAttribute('aria-pressed',TV[id]?'true':'false');b.textContent=TV[id]?'Chart':'Table'}
 document.querySelectorAll('button.tbl').forEach(b=>b.onclick=()=>{TV[b.dataset.for]=!TV[b.dataset.for];paint(b.dataset.for)});
 const hit=(x,y,r,tx)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="transparent" data-t="${esc(tx)}" tabindex="0" aria-label="${esc(tx)}"/>`;
 // ---------- hero ----------
@@ -171,12 +178,17 @@ ALL.forEach(d=>{const w=(new Date(d.date+'T12:00').getDay()+6)%7;HRS.forEach((h,
 const MINCELL=5;
 let HHM='msgs';
 const rate=(r,i)=>AT[r][i]>=MINCELL?100*AQ[r][i]/AT[r][i]:null;
-CH.heat={svg(cw){const q=HHM==='quick',lab=34,cell=Math.floor((cw-lab)/HRS.length),ch=Math.max(22,Math.min(30,cell));let s=`<svg viewBox="0 0 ${cw} ${WD.length*ch+22}" role="img" aria-label="${q?'Quick approval share':'Messages'} by weekday and hour">`;
- HRS.forEach((h,i)=>{if(i%(cw<420?3:2)===0)s+=`<text x="${lab+i*cell+cell/2}" y="12" text-anchor="middle">${h}h</text>`});
- WD.forEach((n,r)=>{s+=`<text class="l" x="0" y="${22+r*ch+ch/2+4}">${n}</text>`;HRS.forEach((h,i)=>{let fill,tx;
-  if(q){const v=rate(r,i);fill=v===null?'var(--gap)':ramp(v,100);tx=AT[r][i]?`${n} ${h}h: ${AQ[r][i]} of ${AT[r][i]} approvals after file changes within 15 seconds`+(v===null?' (too few to compare)':` (${f1(v)}%)`):`${n} ${h}h: no timed approvals after file changes`}
-  else{const v=HG[r][i];fill=ramp(v,HMX);tx=`${n} ${h}h: ${v} messages`}
-  s+=`<rect x="${lab+i*cell+1}" y="${18+r*ch+1}" width="${cell-2}" height="${ch-2}" rx="3" fill="${fill}" data-t="${tx}" tabindex="0" aria-label="${tx}"/>`})});
+CH.heat={svg(cw){const q=HHM==='quick',lab=34,B=cw<520?[[0,1,2],[3,4,5],[6,7,8],[9,10,11],[12,13,14],[15]]:HRS.map((h,i)=>[i]);
+ const cell=Math.floor((cw-lab)/B.length),ch=B.length<=8?40:Math.max(22,Math.min(30,cell));
+ const hl=b=>b.length>1?HRS[b[0]]+'-'+HRS[b[b.length-1]]+'h':HRS[b[0]]+'h';
+ const sumM=(r,b)=>b.reduce((a,i)=>a+HG[r][i],0),sumQ=(r,b)=>b.reduce((a,i)=>a+AQ[r][i],0),sumT=(r,b)=>b.reduce((a,i)=>a+AT[r][i],0);
+ const mx=Math.max(1,...WD.flatMap((n,r)=>B.map(b=>sumM(r,b))));
+ let s=`<svg viewBox="0 0 ${cw} ${WD.length*ch+22}" role="img" aria-label="${q?'Quick approval share':'Messages'} by weekday and hour">`;
+ B.forEach((b,j)=>{if(B.length<=8||j%(cw<420?3:2)===0)s+=`<text x="${lab+j*cell+cell/2}" y="12" text-anchor="middle">${hl(b)}</text>`});
+ WD.forEach((n,r)=>{s+=`<text class="l" x="0" y="${22+r*ch+ch/2+4}">${n}</text>`;B.forEach((b,j)=>{let fill,tx;
+  if(q){const A=sumT(r,b),Qn=sumQ(r,b),v=A>=MINCELL?100*Qn/A:null;fill=v===null?'var(--gap)':ramp(v,100);tx=A?`${n} ${hl(b)}: ${Qn} of ${A} approvals after file changes within 15 seconds`+(v===null?' (too few to compare)':` (${f1(v)}%)`):`${n} ${hl(b)}: no timed approvals after file changes`}
+  else{const v=sumM(r,b);fill=ramp(v,mx);tx=`${n} ${hl(b)}: ${v} messages`}
+  s+=`<rect x="${lab+j*cell+1}" y="${18+r*ch+1}" width="${cell-2}" height="${ch-2}" rx="3" fill="${fill}" data-t="${tx}" tabindex="0" aria-label="${tx}"/>`})});
  return s+'</svg>'+(q?rampKey('0% quick','100% quick'):rampKey('fewer','more messages'))},
  table(){return HHM==='quick'?tbl(['Day',...HRS.map(h=>h+'h')],WD.map((n,r)=>[n,...HRS.map((h,i)=>AT[r][i]?AQ[r][i]+'/'+AT[r][i]:'-')]))+'<p class="note">Quick / timed approvals after file changes.</p>':tbl(['Day',...HRS.map(h=>h+'h')],WD.map((n,r)=>[n,...HG[r]]))}};
 function heatTabs(){const q=HHM==='quick';$('heatSub').textContent=q?'Share of approvals after file changes that came within 15 seconds, by weekday and hour.':'All messages by weekday and hour.';
@@ -199,8 +211,8 @@ CH.sc={svg(cw){if(PTS.length<3)return'<p class="note">Needs a few more days with
 // ---------- calendar ----------
 let CM='active';
 const CALM={active:{label:'Active minutes',f:d=>d.active_minutes,u:' min'},msgs:{label:'Messages',f:d=>d.prompts,u:' messages'},push:{label:'Pushback',f:d=>d.prompts>=MINMSG?d.idx.pushback_pct:null,u:'% pushback'},apm:{label:'Actions per message',f:d=>d.prompts>=MINMSG?d.idx.actions_per_prompt:null,u:' actions per message'}};
-CH.cal={svg(cw){const M=CALM[CM],map={};ALL.forEach(d=>map[d.date]=M.f(d));const mx=Math.max(1,...Object.values(map).filter(v=>v!==null));const nW=27,lab=cw<420?0:30,cell=Math.floor((cw-lab)/nW),cs=cell-3;const endDow=(new Date(LAST).getDay()+6)%7,startT=LAST-(26*7+endDow)*DAY;
- let s=`<svg viewBox="0 0 ${cw} ${7*cell+20}" role="img" aria-label="Daily ${esc(M.label)}, last 27 weeks">`;if(lab)['Mon','Wed','Fri'].forEach((n,i)=>s+=`<text x="0" y="${18+i*2*cell+cs-3}">${n}</text>`);
+CH.cal={svg(cw){const M=CALM[CM],map={};ALL.forEach(d=>map[d.date]=M.f(d));const mx=Math.max(1,...Object.values(map).filter(v=>v!==null));const nW=cw<520?12:27,lab=cw<420?0:30,cell=Math.floor((cw-lab)/nW),cs=cell-3;const endDow=(new Date(LAST).getDay()+6)%7,startT=LAST-((nW-1)*7+endDow)*DAY;
+ $('calSub').textContent=`One square per day, last ${nW} weeks.`;let s=`<svg viewBox="0 0 ${cw} ${7*cell+20}" role="img" aria-label="Daily ${esc(M.label)}, last ${nW} weeks">`;if(lab)['Mon','Wed','Fri'].forEach((n,i)=>s+=`<text x="0" y="${18+i*2*cell+cs-3}">${n}</text>`);
  let lm=-1;for(let w=0;w<nW;w++)for(let r=0;r<7;r++){const ts=startT+(w*7+r)*DAY;if(ts>LAST)continue;const dt=new Date(ts);const iso=new Date(ts-dt.getTimezoneOffset()*6e4).toISOString().slice(0,10);const v=map[iso];
   if(r===0&&dt.getMonth()!==lm){lm=dt.getMonth();s+=`<text x="${lab+w*cell}" y="11">${dt.toLocaleDateString('en-GB',{month:'short'})}</text>`}
   const lb=`${fmt(iso)}: ${v===null||v===undefined?'no data (too few messages)':f1(v)+M.u}`;s+=`<rect x="${lab+w*cell}" y="${16+r*cell}" width="${cs}" height="${cs}" rx="3" fill="${ramp(v,mx)}" data-t="${esc(lb)}" tabindex="0" aria-label="${esc(lb)}"/>`}
@@ -220,7 +232,7 @@ $('card').value=card();$('incnote').onchange=()=>{$('card').value=card()};
 $('copy').onclick=()=>{const tx=$('card');tx.select();let ok=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tx.value);ok=true}else{ok=document.execCommand('copy')}}catch(e){try{ok=document.execCommand('copy')}catch(e2){}}$('copied').textContent=ok?'Copied.':'Select the text above and copy it yourself.'};
 $('fb').innerHTML=D.feedback.length?'<tr><th>Day</th><th>Did it match?</th><th>Your note</th></tr>'+D.feedback.map(x=>`<tr><td>${esc(x.day)}</td><td>${esc(x.match)}</td><td>${esc(x.note||'')}</td></tr>`).join(''):'<tr><td>None yet. Answer the question at the end of the day summary.</td></tr>';
 // ---------- paint ----------
-const paintAll=()=>Object.keys(CH).forEach(paint);paintAll();
+const paintAll=()=>Object.keys(CH).forEach(paint);paintAll();$('more').addEventListener('toggle',()=>{if($('more').open)paintAll()});
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(paintAll,150)});
 }
 if(ALL.length){main()}else{$('body').innerHTML='<div class="card"><p style="margin:0">No AI activity found. Run <code>python3 mirror.py sources</code> to see what Mirror can read.</p></div>'}
