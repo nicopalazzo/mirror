@@ -195,6 +195,43 @@ class Cli(Base):
         self.assertFalse((self.root / "home").exists())
 
 
+class CodexPlugin(unittest.TestCase):
+    P = ROOT / "plugins" / "mirror-codex"
+
+    def test_engine_copy_matches_source(self):
+        for f in list((ROOT / "mirror_core").glob("*.py")) + list((ROOT / "mirror_core").glob("*.html")) + [ROOT / "mirror.py"]:
+            rel = f.relative_to(ROOT)
+            self.assertEqual(f.read_bytes(), (self.P / rel).read_bytes(), f"{rel} is stale: run scripts/build_plugins.py")
+
+    def test_copy_says_dollar_in_codex_copy(self):
+        import subprocess, tempfile
+        with tempfile.TemporaryDirectory() as home:
+            env = dict(os.environ, HOME=home, USERPROFILE=home)
+            out = subprocess.run([sys.executable, str(self.P / "mirror.py"), "nudge", "on"], env=env,
+                                 capture_output=True, text=True).stdout
+        self.assertIn("$mirror:off", out)
+        self.assertNotIn("/mirror:", out)
+
+    def test_manifest_hook_skills_and_marketplace(self):
+        man = json.loads((self.P / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(man["name"], "mirror")
+        hooks = json.loads((self.P / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]
+        self.assertEqual(list(hooks), ["UserPromptSubmit"])
+        h = hooks["UserPromptSubmit"][0]["hooks"][0]
+        self.assertIn("nudge-hook", h["command"])
+        self.assertIn("PLUGIN_ROOT", h["command"])
+        for skill in ("check", "on", "off", "snooze", "status"):
+            text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+            self.assertIn(f"name: {skill}", text)
+            self.assertNotIn("CLAUDE_PLUGIN_ROOT", text)
+            policy = (self.P / "skills" / skill / "agents" / "openai.yaml").read_text(encoding="utf-8")
+            self.assertIn("allow_implicit_invocation: false", policy, skill)
+        market = json.loads((ROOT / ".agents" / "plugins" / "marketplace.json").read_text(encoding="utf-8"))
+        entry = market["plugins"][0]
+        self.assertEqual(entry["name"], man["name"])
+        self.assertTrue((ROOT / entry["source"]["path"] / ".codex-plugin" / "plugin.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -468,6 +505,33 @@ class NudgeExperiment(Nudge):
         self.assertIn("held back 2 moments, acted 50%", line)
         self.assertIn("+0 points", line)
 
+    def test_action_copy_is_off_by_default(self):
+        self.assertEqual(self.n.load()["action_copy"], 0.0)
+        self.on(threshold="5")
+        out = self.run_prompts(["ok"] * 5, self.t0)
+        self.assertIn("Review Claude's last answer?", out[-1])
+        self.assertEqual([e for e in self.n.load()["log"] if e["event"] == "nudge"][-1]["variant"], "plain")
+        self.assertNotIn("Copy test", self.n.status())
+
+    def test_action_copy_asks_for_a_line_and_logs_variant(self):
+        self.on(threshold="5", **{"action-copy": "0.5"})
+        with mock.patch.object(self.n, "_rand", lambda: 0.1):
+            out = self.run_prompts(["ok"] * 5, self.t0)
+        self.assertIn("add one line", out[-1])
+        self.assertNotIn("Review Claude's last answer?", out[-1])
+        self.assertIn("Enter: send anyway", out[-1])  # still not enforced
+        self.n.on_prompt("s", "it changes the nudge copy, so add a test", now=self.t0 + timedelta(minutes=6))
+        resp = [e for e in self.n.load()["log"] if e["event"] == "response"][-1]
+        self.assertEqual((resp["response"], resp["variant"]), ("edited", "action"))
+        self.assertIn("add-a-line 1 nudges, acted 0%, acted or edited 100%", self.n.status())
+
+    def test_action_copy_plain_arm_when_coin_is_high(self):
+        self.on(threshold="5", **{"action-copy": "0.5"})
+        with mock.patch.object(self.n, "_rand", lambda: 0.9):
+            out = self.run_prompts(["ok"] * 5, self.t0)
+        self.assertIn("Review Claude's last answer?", out[-1])
+        self.assertEqual(self.n.load()["pending_variant"], "plain")
+
     def test_ratio_fires_where_streak_would_not(self):
         self.on(rule="ratio", **{"ratio-threshold": "0.9"})
         out = self.run_prompts(["ok"] * 14 + ["why is this failing?"] + ["ok"] * 5, self.t0)
@@ -493,6 +557,7 @@ class NudgeExperiment(Nudge):
 
     def test_bad_settings_are_refused(self):
         self.assertIn("must be", self.n.configure("holdback", "2"))
+        self.assertIn("must be", self.n.configure("action-copy", "1.5"))
         self.assertIn("must be", self.n.configure("rule", "sometimes"))
         self.assertIn("Unknown", self.n.configure("colour", "red"))
         self.assertEqual(self.n.load()["holdback"], 0.0)

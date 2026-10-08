@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TARGETS = [ROOT / "plugins" / "mirror-claude"]
+TARGETS = [ROOT / "plugins" / "mirror-claude", ROOT / "plugins" / "mirror-codex"]
 
 
 def build():

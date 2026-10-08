@@ -1,0 +1,18 @@
+{
+  "name": "mirror",
+  "version": "0.3.0",
+  "description": "A local look at how you work with AI. Optional nudge after a long run without questioning the AI. Counts only; never stores or sends what you write.",
+  "author": { "name": "Nicolas Palazzo" },
+  "repository": "https://github.com/nicopalazzo/mirror",
+  "license": "MIT",
+  "keywords": ["reflection", "critical-thinking", "privacy", "local-first"],
+  "interface": {
+    "displayName": "Mirror",
+    "shortDescription": "A local look at how you work with AI",
+    "longDescription": "Counts patterns in your own prompts and, only if you turn it on, shows one line after a long run without a question or pushback. Stores counts and times only; never your text; no network.",
+    "developerName": "Nicolas Palazzo",
+    "category": "Productivity",
+    "capabilities": ["Read"],
+    "defaultPrompt": ["Turn Mirror nudges on", "Show my Mirror status"]
+  }
+}

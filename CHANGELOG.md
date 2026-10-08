@@ -11,10 +11,13 @@ Plugin version 0.3.1.
 ### Added
 
 - `/mirror:report` in the Claude Code plugin: builds the HTML report from your own logs and opens it in the browser. It never accepts the first-run notice for you.
+- Codex plugin (`plugins/mirror-codex`, marketplace at `.agents/plugins/marketplace.json`): the same nudge hook and five skills, with copy that says `$mirror:` and "the last answer" inside Codex. Not yet tested inside a live Codex session.
 - Contributing guide with privacy rules, pull request template and gitleaks pre-commit hook.
 - A message sent right after a nudge counts as its answer: a question or pushback means acted, another non-approval means edited, and a plain approval means sent anyway. Only "sent anyway" counts as ignored.
 - Ratio rule for the nudge (`mirror.py nudge rule ratio`): fires when a share of your last messages (20 by default) had no question or pushback, so one question no longer resets everything. The streak rule stays the default.
 - Hold-back test (`mirror.py nudge holdback 0.5`): when the rule fires, a coin decides whether the nudge is shown or silently held back. `/mirror:status` compares the acted rate in both. Held-back moments never count as ignored. Off by default.
+- Copy test (`mirror.py nudge action-copy 0.5`): that share of shown nudges asks you to add one line (what the answer changes, or one question) instead of "Review Claude's last answer?". Nothing is enforced; Enter still sends. `/mirror:status` compares both copies. Off by default.
+- `echo` skill in the Claude Code plugin: when nudges are on, Claude ends a proposal for a hard-to-reverse step with a request to answer with a detail from the plan (a file name, a branch), so approving takes a read. Claude decides when it applies, so how often it loads is untested. Not in the Codex plugin yet.
 - Nudge settings from the command line: `holdback`, `rule`, `ratio-threshold`, `window`, `threshold`, `cooldown`.
 - `scripts/calibrate_nudge.py`: replays your own Claude Code messages through each rule and prints how often it would fire. Read-only, counts only.
 
