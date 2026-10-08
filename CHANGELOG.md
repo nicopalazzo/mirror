@@ -18,6 +18,7 @@ Plugin version 0.3.1.
 - Hold-back test (`mirror.py nudge holdback 0.5`): when the rule fires, a coin decides whether the nudge is shown or silently held back. `/mirror:status` compares the acted rate in both. Held-back moments never count as ignored. Off by default.
 - Copy test (`mirror.py nudge action-copy 0.5`): that share of shown nudges asks you to add one line (what the answer changes, or one question) instead of "Review Claude's last answer?". Nothing is enforced; Enter still sends. `/mirror:status` compares both copies. Off by default.
 - `echo` skill in the Claude Code plugin: when nudges are on, Claude ends a proposal for a hard-to-reverse step with a request to answer with a detail from the plan (a file name, a branch), so approving takes a read. Claude decides when it applies, so how often it loads is untested. Not in the Codex plugin yet.
+- Quick approvals by weekday and hour: each day now keeps how many approvals after file changes came in each hour and how many were quick (`hours_approvals`, `hours_quick`; counts only). The report heatmap has a "Quick approvals" view of it; cells with fewer than 5 timed approvals stay grey.
 - Nudge settings from the command line: `holdback`, `rule`, `ratio-threshold`, `window`, `threshold`, `cooldown`.
 - `scripts/calibrate_nudge.py`: replays your own Claude Code messages through each rule and prints how often it would fire. Read-only, counts only.
 

@@ -116,6 +116,14 @@ class Indexes(Base):
         self.assertEqual(s["kinds"]["challenge"], 1)
         self.assertEqual(sorted(s["tools"]), ["Claude", "Codex"])  # Cursor is read separately in CursorReader
 
+    def test_approvals_by_hour_add_up_to_the_day(self):
+        t1, a1, _ = read_claude(self.claude)
+        t2, a2, _ = read_codex(self.codex)
+        s = by_day(t1 + t2, a1 + a2)[self.base.date()]
+        self.assertEqual(sum(s["hours_approvals"].values()), s["idx"]["approvals_after_writes"])
+        self.assertEqual(sum(s["hours_quick"].values()), s["idx"]["quick_approvals"])
+        self.assertTrue(all(s["hours_quick"].get(h, 0) <= n for h, n in s["hours_approvals"].items()))
+
 
 class Security(Base):
     def test_no_network_or_exec_code(self):

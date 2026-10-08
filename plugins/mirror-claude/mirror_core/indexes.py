@@ -20,6 +20,7 @@ def _rubber_stamp(turns, actions, quick_seconds):
     for a in actions:
         by_session[(a.tool, a.session)].append(("a", a.ts, a))
     quick = total = untimed = 0
+    by_hour = defaultdict(lambda: [0, 0])  # hour of the approval -> [quick, timed approvals after file changes]
     longest = 0
     writes_total = 0
     for events in by_session.values():
@@ -41,10 +42,12 @@ def _rubber_stamp(turns, actions, quick_seconds):
                         untimed += 1  # the log has no time for the AI's turn, so the gap cannot be measured
                     else:
                         total += 1
+                        by_hour[ts.hour][1] += 1
                         if (ts - last_ai).total_seconds() < quick_seconds:
                             quick += 1
+                            by_hour[ts.hour][0] += 1
                 run_writes = 0
-    return quick, total, longest, untimed
+    return quick, total, longest, untimed, by_hour
 
 
 def _active_minutes(stamps):
@@ -66,7 +69,7 @@ def day_stats(turns, actions, quick_seconds=QUICK_SECONDS):
     sessions = {(t.tool, t.session) for t in turns} | {(a.tool, a.session) for a in actions}
     projects = {(t.tool, t.project) for t in turns} | {(a.tool, a.project) for a in actions}
     stamps = [t.ts for t in turns] + [a.ts for a in actions]
-    quick, appr_after_writes, longest, untimed = _rubber_stamp(turns, actions, quick_seconds)
+    quick, appr_after_writes, longest, untimed, appr_by_hour = _rubber_stamp(turns, actions, quick_seconds)
     non_reply = sum(v for k, v in cats.items() if k != "reply")
     hours_h = Counter(t.ts.hour for t in turns if t.kind != "meta")
     hours_a = Counter(a.ts.hour for a in actions)
@@ -84,6 +87,8 @@ def day_stats(turns, actions, quick_seconds=QUICK_SECONDS):
         "cats": dict(cats),
         "hours_prompts": dict(hours_h),
         "hours_actions": dict(hours_a),
+        "hours_approvals": {h: v[1] for h, v in appr_by_hour.items()},
+        "hours_quick": {h: v[0] for h, v in appr_by_hour.items()},
         "idx": {
             "pushback_pct": _pct(kinds["challenge"], engaged),
             "question_pct": _pct(kinds["question"], engaged),
