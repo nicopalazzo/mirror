@@ -6,7 +6,7 @@ The command-line tool (`mirror_core.__version__`) and the Claude Code plugin (`p
 
 ## [Unreleased]
 
-Plugin version 0.3.0.
+Plugin version 0.3.1.
 
 ### Added
 
