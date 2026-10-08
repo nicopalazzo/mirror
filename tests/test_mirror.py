@@ -505,6 +505,33 @@ class NudgeExperiment(Nudge):
         self.assertIn("held back 2 moments, acted 50%", line)
         self.assertIn("+0 points", line)
 
+    def test_action_copy_is_off_by_default(self):
+        self.assertEqual(self.n.load()["action_copy"], 0.0)
+        self.on(threshold="5")
+        out = self.run_prompts(["ok"] * 5, self.t0)
+        self.assertIn("Review Claude's last answer?", out[-1])
+        self.assertEqual([e for e in self.n.load()["log"] if e["event"] == "nudge"][-1]["variant"], "plain")
+        self.assertNotIn("Copy test", self.n.status())
+
+    def test_action_copy_asks_for_a_line_and_logs_variant(self):
+        self.on(threshold="5", **{"action-copy": "0.5"})
+        with mock.patch.object(self.n, "_rand", lambda: 0.1):
+            out = self.run_prompts(["ok"] * 5, self.t0)
+        self.assertIn("add one line", out[-1])
+        self.assertNotIn("Review Claude's last answer?", out[-1])
+        self.assertIn("Enter: send anyway", out[-1])  # still not enforced
+        self.n.on_prompt("s", "it changes the nudge copy, so add a test", now=self.t0 + timedelta(minutes=6))
+        resp = [e for e in self.n.load()["log"] if e["event"] == "response"][-1]
+        self.assertEqual((resp["response"], resp["variant"]), ("edited", "action"))
+        self.assertIn("add-a-line 1 nudges, acted 0%, acted or edited 100%", self.n.status())
+
+    def test_action_copy_plain_arm_when_coin_is_high(self):
+        self.on(threshold="5", **{"action-copy": "0.5"})
+        with mock.patch.object(self.n, "_rand", lambda: 0.9):
+            out = self.run_prompts(["ok"] * 5, self.t0)
+        self.assertIn("Review Claude's last answer?", out[-1])
+        self.assertEqual(self.n.load()["pending_variant"], "plain")
+
     def test_ratio_fires_where_streak_would_not(self):
         self.on(rule="ratio", **{"ratio-threshold": "0.9"})
         out = self.run_prompts(["ok"] * 14 + ["why is this failing?"] + ["ok"] * 5, self.t0)
@@ -530,6 +557,7 @@ class NudgeExperiment(Nudge):
 
     def test_bad_settings_are_refused(self):
         self.assertIn("must be", self.n.configure("holdback", "2"))
+        self.assertIn("must be", self.n.configure("action-copy", "1.5"))
         self.assertIn("must be", self.n.configure("rule", "sometimes"))
         self.assertIn("Unknown", self.n.configure("colour", "red"))
         self.assertEqual(self.n.load()["holdback"], 0.0)

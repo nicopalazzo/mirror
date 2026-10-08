@@ -19,6 +19,9 @@ Design (see THREAT-MODEL.md and the JITAI framework, Nahum-Shani et al. 2018):
   whether the nudge is shown or silently held back. The next message is logged as the response in
   both arms, so the acted rate after a shown nudge can be compared with the same moment without one.
   Held-back moments start the cooldown but never count as ignored. Off (0.0) by default.
+- Copy test (8 Oct 2026). With `action_copy` > 0, that share of shown nudges swaps "Review Claude's last answer?"
+  for a request to add one line (what the answer changes, or one question). Nothing is enforced: Enter still
+  sends. The variant is logged with the nudge and its response so the two copies can be compared. Off (0.0) by default.
 - A nudge blocks that one prompt and shows its line where the user is typing; the prompt stays in
   the input box, so Enter sends it. Claude Code does not display systemMessage from this hook
   (tested 26 Sep 2026, v2.1.283, Desktop app and CLI), so blocking is the only direct channel.
@@ -47,6 +50,8 @@ DEFAULTS = {
     "window": 20,
     "ratio_threshold": 0.9,
     "holdback": 0.0,
+    "action_copy": 0.0,
+    "pending_variant": None,
     "sessions": {},
     "log": [],
 }
@@ -62,6 +67,8 @@ COPY = [
 ]
 COPY_RATIO = ("Mirror held this message. Nothing is broken. {k} of your last {w} messages had no question or pushback. "
               "Review Claude's last answer?\n" + CONTROLS)
+ASK_PLAIN = "Review Claude's last answer?"
+ASK_ACTION = "Before you send, add one line: what Claude's last answer changes, or one question about it."
 INTRO = ("Mirror nudges are off. Type /mirror:on to turn them on. "
          "Mirror counts your messages but never stores or sends what you write.")
 STEP_BACK = ("No answer to the last 3 nudges, so Mirror will stay quiet for a day.\n"
@@ -134,7 +141,9 @@ def _close_pending(st, response):
         arm = st.get("pending_arm") or "shown"
         st["pending"] = False
         st["pending_arm"] = None
-        _log(st, "response", response=response, arm=arm)
+        variant = st.get("pending_variant") or "plain"
+        st["pending_variant"] = None
+        _log(st, "response", response=response, arm=arm, variant=variant)
         if arm != "shown":
             return  # the user saw nothing, so nothing was ignored or answered
         if response in ("check", "snooze", "off", "acted", "edited"):
@@ -198,10 +207,16 @@ def on_prompt(session_id, prompt, now=None):
                 _log(st, "withheld", **info)
             else:
                 st["pending_arm"] = "shown"
+                ac = float(st.get("action_copy") or 0.0)
+                variant = "action" if ac > 0 and _rand() < ac else "plain"
+                st["pending_variant"] = variant
+                info["variant"] = variant
                 if rule == "ratio":
                     msg = COPY_RATIO.format(k=k, w=w)
                 else:
                     msg = COPY[len([e for e in st["log"] if e["event"] == "nudge"]) % len(COPY)].format(n=n)
+                if variant == "action":
+                    msg = msg.replace(ASK_PLAIN, ASK_ACTION)
                 _log(st, "nudge", **info)
         sess["streak"] = 0
         sess["recent"] = []
@@ -246,13 +261,14 @@ def respond(action, minutes=None, now=None):
 
 SETTINGS = {
     "holdback": (float, 0.0, 0.9, "share of firings held back as a comparison"),
+    "action-copy": (float, 0.0, 1.0, "share of shown nudges that ask you to add one line"),
     "rule": (str, None, None, "streak or ratio"),
     "ratio-threshold": (float, 0.5, 1.0, "share of passive messages that fires the ratio rule"),
     "window": (int, 5, 100, "messages the ratio rule looks back over"),
     "threshold": (int, 3, 500, "messages in a row for the streak rule"),
     "cooldown": (int, 5, 1440, "minimum minutes between firings"),
 }
-_KEYS = {"ratio-threshold": "ratio_threshold", "cooldown": "cooldown_minutes"}
+_KEYS = {"ratio-threshold": "ratio_threshold", "cooldown": "cooldown_minutes", "action-copy": "action_copy"}
 
 
 def configure(name, value):
@@ -300,6 +316,25 @@ def _arm_line(log, holdback):
     return line
 
 
+def _variant_line(log, action_copy):
+    by = {"plain": [], "action": []}
+    for e in log:
+        if e["event"] == "response" and (e.get("arm") or "shown") == "shown":
+            by.setdefault(e.get("variant") or "plain", []).append(e.get("response"))
+    if not by["action"] and not action_copy:
+        return None
+
+    def rate(rs):
+        if not rs:
+            return "no answers yet"
+        acted = sum(1 for r in rs if r in ("acted", "check"))
+        both = acted + rs.count("edited")
+        return f"{len(rs)} nudges, acted {round(100 * acted / len(rs))}%, acted or edited {round(100 * both / len(rs))}%"
+
+    return (f"Copy test ({round(100 * action_copy)}% ask for a line): plain {rate(by['plain'])}; "
+            f"add-a-line {rate(by['action'])} (small samples: a direction, not a result)")
+
+
 def status():
     st = load()
     nudges = [e for e in st["log"] if e["event"] == "nudge"]
@@ -323,6 +358,9 @@ def status():
     arm = _arm_line(st["log"], float(st.get("holdback") or 0.0))
     if arm:
         lines.append(arm)
+    var = _variant_line(st["log"], float(st.get("action_copy") or 0.0))
+    if var:
+        lines.append(var)
     return "\n".join(lines)
 
 
