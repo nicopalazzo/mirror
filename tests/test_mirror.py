@@ -277,6 +277,61 @@ class Feedback(Base):
         self.assertNotIn("PRIVATE NOTE", card)
 
 
+class QuizFirstRun(Base):
+    """The one-time "look in the mirror" quiz: first report of a new install only, answers never stored."""
+
+    def _cfg(self):
+        return json.loads((self.root / "home" / "config.json").read_text(encoding="utf-8"))
+
+    def _html(self):
+        return next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+
+    def test_new_install_is_marked_pending_and_few_messages_means_no_quiz(self):
+        run_cli(["report", "--yes"], self.env)
+        self.assertEqual(self._cfg()["quiz"], "pending")
+        self.assertIn('"quiz": false', self._html())
+
+    def test_first_report_has_the_quiz_once_and_day_holds_numbers_back(self):
+        with mock.patch.object(mirror, "QUIZ_MIN_MESSAGES", 1):
+            _, held = run_cli(["day", "--yes", "--no-feedback"], self.env)
+            self.assertNotIn("Challenge rate", held)
+            self.assertIn("--skip-quiz", held)
+            run_cli(["report"], self.env)
+            html = self._html()
+            self.assertIn('"quiz": true', html)
+            self.assertNotIn("https://", html)
+            self.assertNotIn("http://", html.replace("http://www.w3.org", ""))
+            self.assertEqual(self._cfg()["quiz"], "shown")
+            run_cli(["report"], self.env)
+            self.assertIn('"quiz": false', self._html())
+            _, shown = run_cli(["day", "--no-feedback"], self.env)
+            self.assertIn("Challenge rate", shown)
+
+    def test_skip_quiz_shows_numbers_and_never_asks(self):
+        with mock.patch.object(mirror, "QUIZ_MIN_MESSAGES", 1):
+            _, out = run_cli(["day", "--yes", "--no-feedback", "--skip-quiz"], self.env)
+            self.assertIn("Challenge rate", out)
+            self.assertEqual(self._cfg()["quiz"], "skipped")
+            run_cli(["report"], self.env)
+            self.assertIn('"quiz": false', self._html())
+
+    def test_existing_install_is_not_quizzed(self):
+        home = self.root / "home"
+        home.mkdir()
+        (home / "config.json").write_text(json.dumps({"consent_version": 2, "consented_at": "2026-09-01T10:00:00"}), encoding="utf-8")
+        with mock.patch.object(mirror, "QUIZ_MIN_MESSAGES", 1):
+            _, out = run_cli(["day", "--no-feedback"], self.env)
+            self.assertIn("Challenge rate", out)
+            run_cli(["report"], self.env)
+        self.assertIn('"quiz": false', self._html())
+        self.assertNotIn("quiz", self._cfg())
+
+    def test_only_a_state_word_is_stored_never_guesses(self):
+        with mock.patch.object(mirror, "QUIZ_MIN_MESSAGES", 1):
+            run_cli(["report", "--yes"], self.env)
+        self.assertEqual(set(self._cfg()), {"consent_version", "consented_at", "quiz"})
+
+
 class ReportMobileFirst(unittest.TestCase):
     """Cheap guards for the mobile-first rules in CONTRIBUTING.md. A real check at 375 px is still done by eye."""
     TPL = (ROOT / "mirror_core" / "report_template.html").read_text(encoding="utf-8")
@@ -304,7 +359,6 @@ class ReportMobileFirst(unittest.TestCase):
         small = [m for m in re.findall(r"([^{}]+)\{[^}]*font-size:(\d+)px", css) if int(m[1]) < 14]
         for sel, px in small:
             self.assertTrue(any(k in sel for k in ("svg text", ".eyebrow", ".ramp")), sel + " " + px + "px")
-
 
 
 class Docs(unittest.TestCase):

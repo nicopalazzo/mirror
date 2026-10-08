@@ -15,7 +15,7 @@ NOT_READ = [
 ]
 
 
-def build(all_days, feedback, tokens, out_path: Path, coverage=None):
+def build(all_days, feedback, tokens, out_path: Path, coverage=None, quiz=False):
     days = []
     for d, s in all_days.items():
         row = {k: v for k, v in s.items() if k != "_counts"}
@@ -23,7 +23,7 @@ def build(all_days, feedback, tokens, out_path: Path, coverage=None):
         row["date"] = d.isoformat()
         days.append(row)
     data = {"days": days, "feedback": feedback, "tokens": tokens, "indexes": INDEXES, "disclaimer": DISCLAIMER,
-            "coverage": [dict(c, note=TOOL_NOTES.get(c["tool"], "")) for c in (coverage or [])], "not_read": NOT_READ}
+            "coverage": [dict(c, note=TOOL_NOTES.get(c["tool"], "")) for c in (coverage or [])], "not_read": NOT_READ, "quiz": bool(quiz)}
     tpl = (Path(__file__).parent / "report_template.html").read_text(encoding="utf-8")
     html = tpl.replace("/*__DATA__*/null", json.dumps(data).replace("</", "<\\/"))
     out_path.parent.mkdir(parents=True, exist_ok=True)

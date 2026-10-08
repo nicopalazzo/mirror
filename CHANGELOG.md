@@ -10,6 +10,7 @@ Plugin version 0.3.1.
 
 ### Added
 
+- One-time "look in the mirror" quiz: on a new install, the first report opens with four guesses (pushback, plain "ok", AI actions per message, quick approvals), then shows each guess next to what Mirror counted, as a gap. The answers live in the page only; Mirror stores one word (`pending`, `shown` or `skipped`) in `~/.mirror/config.json`. Until then `day` and `week` hold the numbers back; `--skip-quiz` skips it. Not shown to existing installs or when there are fewer than 30 messages.
 - `/mirror:report` in the Claude Code plugin: builds the HTML report from your own logs and opens it in the browser. It never accepts the first-run notice for you.
 - Codex plugin (`plugins/mirror-codex`, marketplace at `.agents/plugins/marketplace.json`): the same nudge hook and five skills, with copy that says `$mirror:` and "the last answer" inside Codex. Not yet tested inside a live Codex session.
 - Contributing guide with privacy rules, pull request template and gitleaks pre-commit hook.
