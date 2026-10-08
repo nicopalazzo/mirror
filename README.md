@@ -59,9 +59,20 @@ claude plugin marketplace add nicopalazzo/mirror
 claude plugin install mirror@mirror
 ```
 
-Then start a new session and type `/mirror:on`. `/mirror:status` shows how you have answered.
+Then start a new session and type `/mirror:on`. `/mirror:status` shows how you have answered. `/mirror:report` builds the HTML report from your own logs and opens it in your browser (the page shows your own notes, so do not share your screen with it open).
 
-Two optional settings, from a terminal in the `mirror` folder: `python3 mirror.py nudge rule ratio` fires on the share of your last 20 messages without a question or pushback instead of an unbroken streak (`scripts/calibrate_nudge.py` shows how often each rule would have fired on your own logs). `python3 mirror.py nudge holdback 0.5` holds back half the nudges at random, so `/mirror:status` can compare what you did with and without one. Remove with `claude plugin uninstall mirror@mirror`. Codex and Cursor plugins are planned; they are packaged separately because each tool loads hooks differently.
+Two optional settings, from a terminal in the `mirror` folder: `python3 mirror.py nudge rule ratio` fires on the share of your last 20 messages without a question or pushback instead of an unbroken streak (`scripts/calibrate_nudge.py` shows how often each rule would have fired on your own logs). `python3 mirror.py nudge holdback 0.5` holds back half the nudges at random, so `/mirror:status` can compare what you did with and without one. Remove with `claude plugin uninstall mirror@mirror`. A Codex plugin is below; a Cursor plugin is planned. They are packaged separately because each tool loads hooks differently.
+
+## Nudges inside Codex (plugin)
+
+Same nudge, packaged for Codex (`plugins/mirror-codex`). From the `mirror` folder (or use `nicopalazzo/mirror` once you have access):
+
+```
+codex plugin marketplace add .
+codex plugin add mirror
+```
+
+Restart Codex, then **review and trust Mirror's hook** (Codex asks the first time; `/hooks` shows it). Invoke the skills as `$mirror:on`, `$mirror:status`, `$mirror:snooze`, `$mirror:check`, `$mirror:off`. It is off until you turn it on. Needs a Codex version with plugin hooks; untested on Windows.
 
 ## Use it from Claude or Codex (no terminal typing)
 

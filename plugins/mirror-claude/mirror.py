@@ -252,11 +252,11 @@ def cmd_nudge(args):
         st["threshold"] = max(3, args.threshold)
         nudge.save(st)
     if args.action in nudge.SETTINGS:
-        print(nudge.configure(args.action, args.value))
+        print(nudge.localize(nudge.configure(args.action, args.value)))
     elif args.action == "status":
-        print(nudge.status())
+        print(nudge.localize(nudge.status()))
     else:
-        print(nudge.respond(args.action, args.minutes))
+        print(nudge.localize(nudge.respond(args.action, args.minutes)))
     return 0
 
 

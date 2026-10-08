@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import random
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from . import store
 from .classify import classify
@@ -68,6 +69,13 @@ STEP_BACK = ("No answer to the last 3 nudges, so Mirror will stay quiet for a da
 
 
 _rand = random.random  # replaced in tests
+
+
+def localize(text):
+    """Codex plugin copies carry a .codex-plugin folder next to mirror_core: say $mirror:x, not /mirror:x."""
+    if not text or not (Path(__file__).resolve().parent.parent / ".codex-plugin").exists():
+        return text
+    return text.replace("/mirror:", "$mirror:").replace("Claude's last answer", "the last answer")
 
 
 def _dur(mins):
@@ -141,7 +149,7 @@ def on_prompt(session_id, prompt, now=None):
     st = load()
     kind = classify(prompt or "")
     # A /mirror:* command is the user answering Mirror; handled by the command itself.
-    if (prompt or "").lstrip().startswith("/mirror"):
+    if (prompt or "").lstrip().startswith(("/mirror", "$mirror")):
         return None
     if not st["enabled"]:
         if not st["introduced"]:
@@ -326,9 +334,9 @@ def hook_main(stdin_text):
         # Claude Code sends "prompt"; the docs name it "user_prompt". Accept both.
         msg = on_prompt(data.get("session_id"), data.get("prompt") or data.get("user_prompt") or "")
         if msg in (INTRO, STEP_BACK):
-            return json.dumps({"systemMessage": msg})
+            return json.dumps({"systemMessage": localize(msg)})
         if msg:
-            return json.dumps({"decision": "block", "reason": msg})
+            return json.dumps({"decision": "block", "reason": localize(msg)})
     except Exception:  # never break the user's prompt
         return ""
     return ""

@@ -6,10 +6,12 @@ The command-line tool (`mirror_core.__version__`) and the Claude Code plugin (`p
 
 ## [Unreleased]
 
-Plugin version 0.3.0.
+Plugin version 0.3.1.
 
 ### Added
 
+- `/mirror:report` in the Claude Code plugin: builds the HTML report from your own logs and opens it in the browser. It never accepts the first-run notice for you.
+- Codex plugin (`plugins/mirror-codex`, marketplace at `.agents/plugins/marketplace.json`): the same nudge hook and five skills, with copy that says `$mirror:` and "the last answer" inside Codex. Not yet tested inside a live Codex session.
 - Contributing guide with privacy rules, pull request template and gitleaks pre-commit hook.
 - A message sent right after a nudge counts as its answer: a question or pushback means acted, another non-approval means edited, and a plain approval means sent anyway. Only "sent anyway" counts as ignored.
 - Ratio rule for the nudge (`mirror.py nudge rule ratio`): fires when a share of your last messages (20 by default) had no question or pushback, so one question no longer resets everything. The streak rule stays the default.

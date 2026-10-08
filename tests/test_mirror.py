@@ -195,6 +195,43 @@ class Cli(Base):
         self.assertFalse((self.root / "home").exists())
 
 
+class CodexPlugin(unittest.TestCase):
+    P = ROOT / "plugins" / "mirror-codex"
+
+    def test_engine_copy_matches_source(self):
+        for f in list((ROOT / "mirror_core").glob("*.py")) + list((ROOT / "mirror_core").glob("*.html")) + [ROOT / "mirror.py"]:
+            rel = f.relative_to(ROOT)
+            self.assertEqual(f.read_bytes(), (self.P / rel).read_bytes(), f"{rel} is stale: run scripts/build_plugins.py")
+
+    def test_copy_says_dollar_in_codex_copy(self):
+        import subprocess, tempfile
+        with tempfile.TemporaryDirectory() as home:
+            env = dict(os.environ, HOME=home, USERPROFILE=home)
+            out = subprocess.run([sys.executable, str(self.P / "mirror.py"), "nudge", "on"], env=env,
+                                 capture_output=True, text=True).stdout
+        self.assertIn("$mirror:off", out)
+        self.assertNotIn("/mirror:", out)
+
+    def test_manifest_hook_skills_and_marketplace(self):
+        man = json.loads((self.P / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(man["name"], "mirror")
+        hooks = json.loads((self.P / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]
+        self.assertEqual(list(hooks), ["UserPromptSubmit"])
+        h = hooks["UserPromptSubmit"][0]["hooks"][0]
+        self.assertIn("nudge-hook", h["command"])
+        self.assertIn("PLUGIN_ROOT", h["command"])
+        for skill in ("check", "on", "off", "snooze", "status"):
+            text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+            self.assertIn(f"name: {skill}", text)
+            self.assertNotIn("CLAUDE_PLUGIN_ROOT", text)
+            policy = (self.P / "skills" / skill / "agents" / "openai.yaml").read_text(encoding="utf-8")
+            self.assertIn("allow_implicit_invocation: false", policy, skill)
+        market = json.loads((ROOT / ".agents" / "plugins" / "marketplace.json").read_text(encoding="utf-8"))
+        entry = market["plugins"][0]
+        self.assertEqual(entry["name"], man["name"])
+        self.assertTrue((ROOT / entry["source"]["path"] / ".codex-plugin" / "plugin.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -532,8 +569,13 @@ class ClaudePlugin(unittest.TestCase):
         h = hooks["UserPromptSubmit"][0]["hooks"][0]
         self.assertNotIn("async", h)  # async hooks send systemMessage to Claude, not the user
         self.assertIn("nudge-hook", h["command"])
-        for skill in ("check", "on", "off", "snooze", "status"):
+        for skill in ("check", "on", "off", "snooze", "status", "report"):
             text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn("disable-model-invocation: true", text, skill)
         market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(market["plugins"][0]["name"], man["name"])
+
+    def test_report_command_opens_report_and_never_agrees_for_the_user(self):
+        text = (self.P / "skills" / "report" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("mirror.py\" report --open", text)
+        self.assertNotIn("--yes", text)  # the first-run agreement stays the user's decision

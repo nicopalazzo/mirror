@@ -14,7 +14,7 @@ _META = re.compile(r"^\s*(<command-|<local-command|<task-|\[Request interrupted|
 _APPROVAL = re.compile(
     r"^\s*(?:"
     r"ok(?:ay)?|yes|yep|yeah|yup|sure|go|go ahead|go on|do it|apply(?: it)?|sounds good|looks good|lgtm|"
-    r"agreed?|i agree|perfect|great|good|nice|done|continue|proceed|approved?|ship it|commit|push|thanks|thank you|thx|"
+    r"agreed?|i agree|perfect|great|good|nice|done|continue|proceed|approved?|ship it|thanks|thank you|thx|"
     r"merci|oui|ouais|d'accord|d’accord|dac|vas-y|vas y|allez-y|allez|parfait|c'est bon|c’est bon|top|nickel|super|génial|"
     r"valide|validé|fais-le|fais le|go pour|on y va|let'?s go|(?:run |do |apply )?step \d+"
     r")\b[\s,.!:;\-]*(?:[^.?!\n]{0,40})?[.!]?\s*$",
@@ -41,8 +41,8 @@ _CHALLENGE = re.compile(
 
 # "ok, maybe change this" / "ok but that's wrong": an ok-word followed by pushback is not an approval.
 _PUSH_TAIL = re.compile(r"^\s*\S+[\s,.!:;\-]+(?:but|mais|maybe|peut-être|not|pas|except|sauf)\b", re.I)
-_FILLER = re.compile(r"^\s*(?:(?:ok(?:ay)?|yes|yep|great|good|nice|perfect|so|well|and|now|then|also|alright|right|oui|bon|alors|et|ensuite|du coup)\b[\s,.!:;\-]*)+", re.I)
-_WANT = re.compile(r"^\s*(?:i want(?: you to)?|i need(?: you to)?|you can|you should|we can|we should|we will|let'?s|je veux|j'aimerais|je voudrais|tu peux|on peut|on va)\b", re.I)
+_FILLER = re.compile(r"^\s*(?:(?:ok(?:ay)?|yes|yep|great|good|nice|perfect|so|well|and|now|then|also|alright|right|but|mais|oui|bon|alors|et|ensuite|du coup)\b[\s,.!:;\-]*)+", re.I)
+_WANT = re.compile(r"^\s*(?:i want(?: you to)?|i need(?: you to)?|i(?:'d| would) like(?: you)?(?: to)?|you can|you should|we can|we should|we will|let'?s|je veux|j'aimerais|je voudrais|tu peux|on peut|on va)\b", re.I)
 _WONDER = re.compile(r"(i was wondering|i wonder|i'?m curious|what about|how (?:could|would|does|do)|should (?:i|we|the)|is it worth|do you think|je me demande|est-ce que|qu'en penses|que penses)", re.I)
 _POLITE = re.compile(r"^\s*(can you|could you|would you|will you|please|peux-tu|peux tu|pourrais-tu|pourrais tu|tu peux|pouvez-vous|pourriez-vous|s'il te plaît|stp)\b", re.I)
 _EXPLAIN = re.compile(r"\b(explain|why|what|how|which|pourquoi|comment|quel|quelle|qu'est|explique)\b", re.I)
@@ -54,6 +54,7 @@ _QSTART = re.compile(
 _VERB = re.compile(
     r"^\s*(build|make|write|create|run|fix|add|update|change|remove|delete|find|search|check|show|give|draft|use|let'?s|"
     r"install|implement|refactor|generate|list|summari[sz]e|read|open|rename|move|copy|save|test|try|set|start|stop|"
+    r"commit|push|apply|step \d+|log|analy[sz]e|review|mark|get|propose|explain|do not|don't|keep|nico (?:in|out)|"
     r"crée|créer|fais|ajoute|modifie|supprime|trouve|cherche|vérifie|montre|donne|écris|utilise|lance|génère|liste|résume|"
     r"lis|ouvre|renomme|déplace|copie|sauvegarde|teste|essaie|installe|corrige|mets|change)\b",
     re.I,
@@ -70,7 +71,7 @@ def classify(text: str) -> str:
         return "pasted"
     if len(t) <= 60 and _APPROVAL.match(t) and "?" not in t and not _PUSH_TAIL.search(t):
         tail = _FILLER.sub("", t)
-        if not (tail and (_VERB.match(tail) or _WANT.match(tail)) and not re.match(r"(run |do |apply )?step \d", tail, re.I)):
+        if not (len(tail.split()) > 1 and (_VERB.match(tail) or _WANT.match(tail)) and not re.match(r"(run |do |apply )?step \d", tail, re.I)):
             return "approval"
     if _CHALLENGE.search(t):
         return "challenge"
