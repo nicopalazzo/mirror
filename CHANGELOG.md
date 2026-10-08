@@ -24,6 +24,7 @@ Plugin version 0.3.1.
 ### Changed
 
 - Nudge copy says what happened, then one action, then the controls.
+- The HTML report is now a dashboard: a "What changed" block, four index tiles with sparklines, a weekly chart with your usual range, and four supporting charts, each with a table view. "Usual" comes from your first 12 weeks (average plus or minus 2.66 times the average week-to-week change); a point outside it, or 8 weeks in a row on one side, counts as a signal. With fewer than 6 weeks of data it compares with last week instead. The 7/14/30-day selector is gone; the report shows the last 26 weeks.
 
 ### Fixed
 
