@@ -532,8 +532,13 @@ class ClaudePlugin(unittest.TestCase):
         h = hooks["UserPromptSubmit"][0]["hooks"][0]
         self.assertNotIn("async", h)  # async hooks send systemMessage to Claude, not the user
         self.assertIn("nudge-hook", h["command"])
-        for skill in ("check", "on", "off", "snooze", "status"):
+        for skill in ("check", "on", "off", "snooze", "status", "report"):
             text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn("disable-model-invocation: true", text, skill)
         market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
         self.assertEqual(market["plugins"][0]["name"], man["name"])
+
+    def test_report_command_opens_report_and_never_agrees_for_the_user(self):
+        text = (self.P / "skills" / "report" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("mirror.py\" report --open", text)
+        self.assertNotIn("--yes", text)  # the first-run agreement stays the user's decision
