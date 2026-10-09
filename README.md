@@ -22,7 +22,7 @@ You need Python 3.8 or newer, and at least a few days of Claude Code, Codex or C
 3. Read the list of what Mirror will read, and answer `y` if you agree.
 4. On a first report you get a 4-question quiz before any numbers. Then the report opens in your browser.
 
-Nothing leaves your computer. Mirror has no network code.
+Nothing leaves your computer. Mirror has no network code. A longer, step-by-step version for non-technical readers: [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
 
 ## Your data never leaves your computer
 
