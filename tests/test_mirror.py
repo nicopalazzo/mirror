@@ -247,6 +247,13 @@ class CodexPlugin(unittest.TestCase):
         self.assertIn("Never add `--yes`", text)
         self.assertIn("Do not open or read the report file", text)
 
+    def test_report_skill_asks_approval_to_leave_the_sandbox_with_the_same_command(self):
+        text = (self.P / "skills" / "report" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("outside the sandbox", text)
+        self.assertIn("exactly the same command", text)
+        self.assertIn("Mirror saves its report in ~/Mirror", text)
+        self.assertNotIn("--yes", text.replace("Never add `--yes`", "").replace("do not add flags", ""))
+
 
 if __name__ == "__main__":
     unittest.main()
