@@ -2,11 +2,13 @@
 
 All notable changes to Mirror. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-The command-line tool (`mirror_core.__version__`) and the Claude Code plugin (`plugin.json`) carry separate versions.
+From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`plugin.json`) carry the same version.
 
 ## [Unreleased]
 
-Plugin version 0.3.1 (Claude Code and Codex).
+## [0.3.1] - 2026-10-09
+
+Command-line tool and both plugins (Claude Code and Codex) at 0.3.1.
 
 ### Added
 

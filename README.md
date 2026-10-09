@@ -4,6 +4,26 @@
 
 It is an **exploration**, not a test, a score or a diagnosis. The numbers are questions to ask yourself.
 
+[![tests](https://github.com/nicopalazzo/mirror/actions/workflows/test.yml/badge.svg)](https://github.com/nicopalazzo/mirror/actions/workflows/test.yml)
+
+<p>
+  <img src="docs/images/quiz-question.jpg" alt="Mirror's first-run quiz on a phone: question 1 of 4, a number box and a Next button" width="260">
+  <img src="docs/images/quiz-reveal.jpg" alt="The reveal: your guess next to what Mirror counted, with one question to ask yourself" width="260">
+</p>
+
+*The one-time quiz on a first report, then the reveal. Screenshots use synthetic data.*
+
+## Quick start (about 2 minutes)
+
+You need Python 3.8 or newer, and at least a few days of Claude Code, Codex or Cursor use.
+
+1. Download the zip from the [latest release](https://github.com/nicopalazzo/mirror/releases/latest) (or `git clone https://github.com/nicopalazzo/mirror`) and unzip it.
+2. **Mac:** double-click `Mirror.command`. **Windows:** double-click `Mirror.bat`. Your computer will warn that the file is unsigned the first time; the steps are under [Easiest: double-click](#easiest-double-click).
+3. Read the list of what Mirror will read, and answer `y` if you agree.
+4. On a first report you get a 4-question quiz before any numbers. Then the report opens in your browser.
+
+Nothing leaves your computer. Mirror has no network code.
+
 ## Your data never leaves your computer
 
 - **No network code.** Mirror imports no networking library. A test fails if one is added.
@@ -116,4 +136,4 @@ The tests use synthetic logs only (`tests/make_fixtures.py`). There are no real 
 
 ## Status
 
-Version 0.1, exploratory. Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.
+Version 0.3.1, exploratory (see the [changelog](CHANGELOG.md)). Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.
