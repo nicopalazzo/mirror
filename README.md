@@ -72,7 +72,7 @@ codex plugin marketplace add .
 codex plugin add mirror
 ```
 
-Restart Codex, then **review and trust Mirror's hook** (Codex asks the first time; `/hooks` shows it). Invoke the skills as `$mirror:on`, `$mirror:status`, `$mirror:snooze`, `$mirror:check`, `$mirror:off`. It is off until you turn it on. Needs a Codex version with plugin hooks; untested on Windows.
+Restart Codex, then **review and trust Mirror's hook** (Codex asks the first time; `/hooks` shows it). Invoke the skills as `$mirror:on`, `$mirror:status`, `$mirror:snooze`, `$mirror:check`, `$mirror:off`, `$mirror:report` (builds the HTML report and opens it; on a new install it starts with the one-time quiz). It is off until you turn it on. Needs a Codex version with plugin hooks; untested on Windows.
 
 ## Use it from Claude or Codex (no terminal typing)
 
