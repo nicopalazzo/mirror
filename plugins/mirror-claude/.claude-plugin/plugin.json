@@ -5,6 +5,6 @@
   "description": "A local look at how you work with AI. Optional nudge after a long run without questioning the AI. Counts only; never stores or sends what you write.",
   "author": { "name": "Nicolas Palazzo" },
   "repository": "https://github.com/nicopalazzo/mirror",
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "keywords": ["reflection", "critical-thinking", "privacy", "local-first"]
 }
