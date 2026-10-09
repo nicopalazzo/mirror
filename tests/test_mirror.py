@@ -228,16 +228,24 @@ class CodexPlugin(unittest.TestCase):
         h = hooks["UserPromptSubmit"][0]["hooks"][0]
         self.assertIn("nudge-hook", h["command"])
         self.assertIn("PLUGIN_ROOT", h["command"])
-        for skill in ("check", "on", "off", "snooze", "status"):
+        for skill in ("check", "on", "off", "snooze", "status", "report"):
             text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn(f"name: {skill}", text)
             self.assertNotIn("CLAUDE_PLUGIN_ROOT", text)
             policy = (self.P / "skills" / skill / "agents" / "openai.yaml").read_text(encoding="utf-8")
             self.assertIn("allow_implicit_invocation: false", policy, skill)
+        self.assertEqual(man["version"], json.loads((ROOT / "plugins" / "mirror-claude" / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"])
         market = json.loads((ROOT / ".agents" / "plugins" / "marketplace.json").read_text(encoding="utf-8"))
         entry = market["plugins"][0]
         self.assertEqual(entry["name"], man["name"])
         self.assertTrue((ROOT / entry["source"]["path"] / ".codex-plugin" / "plugin.json").exists())
+
+    def test_report_skill_never_agrees_for_the_user_or_reads_the_report(self):
+        text = (self.P / "skills" / "report" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("python3 mirror.py report --open", text)
+        self.assertNotIn("report --yes", text)  # the first-run agreement stays the user's decision
+        self.assertIn("Never add `--yes`", text)
+        self.assertIn("Do not open or read the report file", text)
 
 
 if __name__ == "__main__":
