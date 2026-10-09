@@ -65,7 +65,7 @@ Two optional settings, from a terminal in the `mirror` folder: `python3 mirror.p
 
 ## Nudges inside Codex (plugin)
 
-Same nudge, packaged for Codex (`plugins/mirror-codex`). From the `mirror` folder (or use `nicopalazzo/mirror` once you have access):
+Same nudge, packaged for Codex (`plugins/mirror-codex`). From the `mirror` folder:
 
 ```
 codex plugin marketplace add .
@@ -83,7 +83,7 @@ If you already work in Claude Code or Codex, install Mirror as a skill and just 
 | Install (one command) | `git clone https://github.com/nicopalazzo/mirror ~/.claude/skills/mirror` | `git clone https://github.com/nicopalazzo/mirror ~/.codex/skills/mirror` |
 | Windows folder | `%USERPROFILE%\.claude\skills\mirror` | `%USERPROFILE%\.codex\skills\mirror` |
 
-Restart the tool after installing. The skill asks your permission first and tells you that what Mirror prints will appear in the chat, so your AI provider sees the numbers (never your messages). If you would rather keep everything local, run it in a terminal as above. The repository is private for now, so cloning it needs GitHub access.
+Restart the tool after installing. The skill asks your permission first and tells you that what Mirror prints will appear in the chat, so your AI provider sees the numbers (never your messages). If you would rather keep everything local, run it in a terminal as above.
 
 ## The four numbers
 
@@ -116,4 +116,4 @@ The tests use synthetic logs only (`tests/make_fixtures.py`). There are no real 
 
 ## Status
 
-Version 0.1, exploratory. Licence: MIT.
+Version 0.1, exploratory. Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.

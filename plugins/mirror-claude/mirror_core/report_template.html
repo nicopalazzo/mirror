@@ -46,9 +46,26 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;p
 textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
 @media (min-width:521px){.tile .val{font-size:40px}.card{padding:16px 20px}}
 @media (hover:hover) and (pointer:fine){button{min-height:34px;padding:5px 12px}summary{min-height:32px}}
+.qz{max-width:520px;margin:0 auto}
+.qz .card{padding:20px 16px}
+.qz .prog{font-size:14px;color:var(--ink2);margin:0 0 12px;font-weight:600}
+.qz .bar{height:6px;background:var(--grid);border-radius:3px;margin:0 0 20px;overflow:hidden}.qz .bar i{display:block;height:100%;background:var(--s1)}
+.qz label{display:block;font-size:20px;line-height:1.35;font-weight:600;margin:0 0 6px}
+.qz .hint{font-size:15px;color:var(--ink2);margin:0 0 16px}
+.qz input{width:100%;font:inherit;font-size:32px;font-weight:700;text-align:center;padding:12px;border:2px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);min-height:64px}
+.qz input:focus{outline:none;border-color:var(--s1)}
+.qz .err{color:var(--ink);font-size:14px;min-height:20px;margin:6px 0 0}
+.qz .acts{display:flex;flex-direction:column;gap:10px;margin-top:20px}
+.qz .acts button{font-size:17px;min-height:52px;width:100%;border-radius:10px}
+.qz .acts .go{background:var(--s1);color:#fff;border-color:var(--s1);font-weight:600}
+.qz .acts .go:disabled{opacity:.45;cursor:default}
+.qz .acts .lnk{border:0;background:none;text-decoration:underline;min-height:44px;font-size:15px;color:var(--ink2)}
+.qz .acts button{min-height:52px;font-size:17px}
+@media (min-width:600px){.qz .card{padding:28px}.qz .acts{flex-direction:row-reverse}.qz .acts button{width:auto;padding:8px 24px}.qz .acts .go{flex:1}}
 </style></head><body><div class="wrap" id="wrap">
 <div class="top"><div><h1>Mirror</h1><p class="sub" id="range"></p></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="badge" id="cov"></span><button id="theme" type="button">Theme</button></div></div>
 <p class="note" id="disc" style="margin:0 0 12px"></p>
+<div id="quiz" hidden></div><div id="reveal" hidden></div>
 <div id="body">
 
 <div class="card"><p class="eyebrow">What changed</p><div class="sigs" id="signals"></div></div>
@@ -235,5 +252,53 @@ $('fb').innerHTML=D.feedback.length?'<tr><th>Day</th><th>Did it match?</th><th>Y
 const paintAll=()=>Object.keys(CH).forEach(paint);paintAll();$('more').addEventListener('toggle',()=>{if($('more').open)paintAll()});
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(paintAll,150)});
 }
-if(ALL.length){main()}else{$('body').innerHTML='<div class="card"><p style="margin:0">No AI activity found. Run <code>python3 mirror.py sources</code> to see what Mirror can read.</p></div>'}
+// ---------- one-time quiz (first report only; answers live in this page and nowhere else) ----------
+function quizInit(){
+ const S=(a,f)=>a.reduce((s,x)=>s+f(x),0),r1=v=>String(Math.round(v*10)/10);
+ const E=S(ALL,d=>d.counts.engaged),AP=S(ALL,d=>d.idx.approvals_after_writes),QA=S(ALL,d=>d.idx.quick_approvals);
+ const real={push:10*S(ALL,d=>d.counts.challenge)/E,appr:10*S(ALL,d=>d.counts.approval)/E,apm:S(ALL,d=>d.ai_actions)/E,quick:AP>=8?10*QA/AP:null};
+ const Q=[
+  {k:'push',h:'Out of 10 messages you send to AI, how many push back, correct it or disagree?',hint:'A number from 0 to 10. A rough guess is fine.',max:10},
+  {k:'appr',h:'Out of 10 messages, how many are just "ok" or "go ahead", with nothing new in them?',hint:'A number from 0 to 10.',max:10},
+  {k:'apm',h:'Each time you send a message, how many things does the AI do on average before you speak again?',hint:'Reading a file, editing one or running a command each count as one thing. Any number from 0 to 100.',max:100},
+  {k:'quick',h:'When the AI has just edited files and you approve, how many of 10 approvals come in under 15 seconds?',hint:'A number from 0 to 10.',max:10}];
+ const ans={},ask=k=>((D.indexes[k]||{}).ask||'');
+ const box=$('quiz'),rev=$('reveal'),body=$('body');let i=0;
+ const done=()=>{box.hidden=true;rev.hidden=true;body.hidden=false;window.scrollTo(0,0)};
+ body.hidden=true;box.hidden=false;
+ const parse=(v,max)=>{const t=String(v).trim().replace(',','.');if(!/^\d+(\.\d+)?$/.test(t))return null;const n=parseFloat(t);return n>=0&&n<=max?n:null};
+ function step(){
+  const q=Q[i],last=i===Q.length-1;
+  box.innerHTML=`<div class="qz"><div class="card"><p class="prog">Question ${i+1} of ${Q.length}</p><div class="bar"><i style="width:${100*i/Q.length}%"></i></div>
+  <label for="qin">${esc(q.h)}</label><p class="hint" id="qh">${esc(q.hint)}</p>
+  <input id="qin" type="text" inputmode="decimal" autocomplete="off" aria-describedby="qh qerr" value="${ans[q.k]===undefined?'':ans[q.k]}" placeholder="0">
+  <p class="err" id="qerr" role="alert"></p>
+  <div class="acts"><button id="qnext" class="go" type="button" disabled>${last?'Show me':'Next'}</button>${i?'<button id="qback" type="button">Back</button>':''}<button id="qskip" class="lnk" type="button">Skip the quiz</button></div>
+  <p class="note" style="font-size:14px;margin-top:14px">${i===0?'Look in the mirror: guess first, then see what Mirror counted. Your answers stay in this page. Nothing is saved or sent, so do not refresh before the reveal.':''}</p></div></div>`;
+  const inp=$('qin'),nx=$('qnext');
+  const check=()=>{const v=parse(inp.value,q.max);nx.disabled=v===null;$('qerr').textContent=inp.value.trim()&&v===null?`Please enter a number from 0 to ${q.max}.`:''};
+  inp.oninput=check;check();
+  const go=()=>{const v=parse(inp.value,q.max);if(v===null)return;ans[q.k]=v;if(last)reveal();else{i++;step()}};
+  nx.onclick=go;inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go()}};
+  if($('qback'))$('qback').onclick=()=>{const v=parse(inp.value,q.max);if(v!==null)ans[q.k]=v;i--;step()};
+  $('qskip').onclick=done;
+  inp.focus();
+ }
+ function reveal(){
+  const N=n=>Math.round(n).toLocaleString('en-GB');
+  const inTen=v=>v<=0?'none':v>=2.5?'about '+Math.round(v)+' in 10':'about 1 in '+Math.round(10/v);
+  const verdict=(g,a,sfx)=>{if(Math.abs(a-g)<Math.max(.5,.15*Math.max(g,a)))return 'Close to your guess.';const up=a>g,r=g>0&&a>0?(up?a/g:g/a):0,w=up?'more':'less';return(r>=2?'About '+Math.round(r)+' times '+w+sfx:'A bit '+w+sfx)+' than you guessed.'};
+  const tile=(lab,guess,found,detail,say,q)=>`<div class="card tile"><div class="lab">${esc(lab)}</div><div class="vs" style="margin-top:8px">You guessed</div><div class="st" style="font-size:18px">${esc(guess)}</div><div class="vs" style="margin-top:12px">Mirror found</div><div class="val" style="font-size:26px;margin:0">${esc(found)}</div><div class="vs">${esc(detail)}</div><p class="st" style="margin:10px 0 0">${esc(say)}</p>${q?`<p class="note">Ask yourself: ${esc(q)}</p>`:''}</div>`;
+  const C=S(ALL,d=>d.counts.challenge),A=S(ALL,d=>d.counts.approval),X=S(ALL,d=>d.ai_actions);
+  const t=[
+   tile('Pushback',r1(ans.push)+' in 10 messages',inTen(real.push)+' messages',`${N(C)} pushbacks in ${N(E)} messages`,verdict(ans.push,real.push,' often'),ask('challenge')),
+   tile('Just "ok"',r1(ans.appr)+' in 10 messages',inTen(real.appr)+' messages',`${N(A)} plain approvals in ${N(E)} messages`,verdict(ans.appr,real.appr,' often'),'Which of those messages did I mean as a real decision?'),
+   tile('AI actions per message',r1(ans.apm)+' per message','about '+r1(real.apm)+' per message',`${N(X)} actions over ${N(E)} messages`,verdict(ans.apm,real.apm,''),ask('delegation')),
+   real.quick===null?tile('Quick approvals',r1(ans.quick)+' in 10 approvals','Not enough to tell',`Only ${AP} timed approvals after file changes in your logs; Mirror needs 8.`,'',''):tile('Quick approvals',r1(ans.quick)+' in 10 approvals',inTen(real.quick)+' approvals',`${N(QA)} of ${N(AP)} approvals after file changes came within 15 seconds`,verdict(ans.quick,real.quick,' often'),ask('approval'))];
+  box.hidden=true;rev.hidden=false;window.scrollTo(0,0);
+  rev.innerHTML=`<div class="card"><p class="eyebrow">The mirror</p><h2 style="font-size:22px">Your guesses next to what Mirror found</h2><p class="sub" style="font-size:15px">Counted over ${ALL.length} active day${ALL.length===1?'':'s'} and ${N(E)} messages. Labels come from simple rules and are sometimes wrong, so a gap can be Mirror's mistake as much as yours. Treat each one as a question.</p></div><div class="grid tiles" style="margin-bottom:14px">${t.join('')}</div><div class="qz"><div class="acts"><button id="qdone" class="go" type="button">See the full report</button></div></div>`;
+  $('qdone').onclick=done}
+ step();
+}
+if(ALL.length){main();if(D.quiz)quizInit()}else{$('body').innerHTML='<div class="card"><p style="margin:0">No AI activity found. Run <code>python3 mirror.py sources</code> to see what Mirror can read.</p></div>'}
 </script></body></html>
