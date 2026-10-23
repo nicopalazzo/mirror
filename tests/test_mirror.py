@@ -548,7 +548,7 @@ class Nudge(unittest.TestCase):
         self.assertEqual(self.n.hook_main('{"user_prompt": null}'), json.dumps({"systemMessage": self.n.INTRO}))
 
     def test_hook_reads_both_prompt_keys_and_blocks_on_nudge(self):
-        self.n.respond("on", now=self.t0)
+        self.n.respond("on")  # real clock: the hook below uses it too
         st = self.n.load(); st["threshold"] = 3; self.n.save(st)
         outs = [self.n.hook_main(json.dumps({"session_id": "a", "prompt": "ok"})) for _ in range(3)]
         self.assertEqual(outs[:2], ["", ""])
@@ -558,6 +558,138 @@ class Nudge(unittest.TestCase):
         st = self.n.load(); st["last_nudge"] = None; self.n.save(st)
         outs = [self.n.hook_main(json.dumps({"session_id": "b", "user_prompt": "ok"})) for _ in range(3)]
         self.assertEqual(json.loads(outs[2])["decision"], "block")
+
+
+class Welcome(unittest.TestCase):
+    """Welcome-back line (23 Oct 2026). Times are mid-day UTC so local-week edges do not matter."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"MIRROR_HOME": self.tmp.name})
+        self.env.start()
+        from mirror_core import welcome
+        self.w = welcome
+        from datetime import datetime, timezone
+        self.wed = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)  # a Wednesday
+        self.next_mon = self.wed + timedelta(days=5)
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def on(self, now=None):
+        self.w.set_enabled(True, now or self.wed)
+
+    def test_off_by_default(self):
+        self.assertIsNone(self.w.on_prompt("ok", True, now=self.wed))
+        self.assertIsNone(self.w.on_prompt("ok", True, now=self.next_mon))
+        self.assertFalse((Path(self.tmp.name) / "welcome.json").exists())
+
+    def test_offers_first_prompt_of_a_new_week_once(self):
+        self.on()
+        self.assertIsNone(self.w.on_prompt("ok", True, now=self.wed + timedelta(hours=1)))
+        self.assertEqual(self.w.on_prompt("go", True, now=self.next_mon), self.w.LINE)
+        self.assertIsNone(self.w.on_prompt("go", True, now=self.next_mon + timedelta(minutes=1)))
+        self.assertIsNone(self.w.on_prompt("go", True, now=self.next_mon + timedelta(days=1)))
+
+    def test_long_gap_inside_a_week_does_not_offer_twice(self):
+        self.on()
+        self.assertEqual(self.w.on_prompt("go", True, now=self.next_mon), self.w.LINE)
+        self.assertIsNone(self.w.on_prompt("go", True, now=self.next_mon + timedelta(days=4)))
+
+    def test_gap_of_three_days_in_the_same_week_counts(self):
+        self.on(self.wed - timedelta(days=2))  # Monday
+        self.assertEqual(self.w.on_prompt("go", True, now=self.wed + timedelta(days=1)), self.w.LINE)
+
+    def test_first_ever_prompt_and_commands_are_not_held(self):
+        self.w.set_enabled(True, self.wed)
+        st = self.w.load(); st["last_seen"] = None; self.w.save(st)
+        self.assertIsNone(self.w.on_prompt("ok", True, now=self.next_mon))
+        self.assertIsNone(self.w.on_prompt("/model", False, now=self.next_mon + timedelta(days=7)))
+        self.assertIsNone(self.w.on_prompt("x" * 3000, False, now=self.next_mon + timedelta(days=14)))
+
+    def test_clock_going_back_never_fires(self):
+        self.on(self.next_mon)
+        self.assertIsNone(self.w.on_prompt("go", True, now=self.wed))
+
+    def test_report_after_offer_is_opened_and_carrying_on_is_skipped(self):
+        self.on()
+        self.w.on_prompt("go", True, now=self.next_mon)
+        self.w.on_prompt("/mirror:report", False, now=self.next_mon + timedelta(minutes=1))
+        self.w.on_prompt("go", True, now=self.next_mon + timedelta(days=7))
+        self.w.on_prompt("carry on", True, now=self.next_mon + timedelta(days=7, minutes=1))
+        resp = [e["response"] for e in self.w.load()["log"] if e["event"] == "response"]
+        self.assertEqual(resp, ["opened", "skipped"])
+
+    def test_report_built_counts_as_opened(self):
+        self.on()
+        self.w.on_prompt("go", True, now=self.next_mon)
+        self.w.note_report(now=self.next_mon + timedelta(minutes=2))
+        self.assertEqual(self.w.load()["log"][-1]["response"], "opened")
+        self.assertFalse(self.w.load()["pending"])
+
+    def test_three_skips_in_a_row_pause_for_a_month(self):
+        self.on()
+        t = self.wed
+        for i in range(3):
+            t = t + timedelta(days=7)
+            self.assertEqual(self.w.on_prompt("go", True, now=t), self.w.LINE)
+            self.w.on_prompt("carry on", True, now=t + timedelta(minutes=1))
+        t = t + timedelta(days=7)
+        self.assertEqual(self.w.on_prompt("go", True, now=t), self.w.PAUSE_LINE)
+        self.assertIsNone(self.w.on_prompt("go", True, now=t + timedelta(days=14)))
+        self.assertIsNone(self.w.on_prompt("go", True, now=t + timedelta(days=21)))
+        self.assertEqual(self.w.on_prompt("go", True, now=t + timedelta(days=31)), self.w.LINE)
+
+    def test_start_of_day_mode(self):
+        self.on()
+        self.w.configure("when", "start-of-day")
+        self.assertIsNone(self.w.on_prompt("go", True, now=self.wed + timedelta(hours=2)))
+        self.assertEqual(self.w.on_prompt("go", True, now=self.wed + timedelta(hours=22)), self.w.LINE)
+        self.assertIsNone(self.w.on_prompt("go", True, now=self.wed + timedelta(hours=23)))
+
+    def test_holdback_logs_a_held_arm_and_shows_nothing(self):
+        self.on()
+        self.w.configure("holdback", "0.9")
+        with mock.patch.object(self.w, "_rand", lambda: 0.0):
+            self.assertIsNone(self.w.on_prompt("go", True, now=self.next_mon))
+        self.assertEqual(self.w.load()["log"][-1]["event"], "withheld")
+        self.w.on_prompt("go", True, now=self.next_mon + timedelta(minutes=1))
+        self.assertEqual(self.w.load()["skipped_in_row"], 0)  # the user saw nothing: not a skip
+
+    def test_snooze_and_off(self):
+        self.on()
+        self.w.snooze(self.next_mon + timedelta(days=1), self.wed)
+        self.assertIsNone(self.w.on_prompt("go", True, now=self.next_mon))
+        self.w.set_enabled(False, self.next_mon)
+        self.assertIsNone(self.w.on_prompt("go", True, now=self.next_mon + timedelta(days=30)))
+
+    def test_nudge_on_and_off_drive_the_welcome(self):
+        from mirror_core import nudge
+        nudge.respond("on", now=self.wed)
+        self.assertTrue(self.w.load()["enabled"])
+        nudge.respond("off", now=self.wed)
+        self.assertFalse(self.w.load()["enabled"])
+
+    def test_hook_blocks_with_the_welcome_line_and_stays_quiet_after(self):
+        self.on(self.wed - timedelta(days=30))
+        out = json.loads(self.w_hook({"session_id": "a", "prompt": "go on"}))
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("quick look in the Mirror", out["reason"])
+        self.assertNotIn("quick look in the Mirror", self.w_hook({"session_id": "a", "prompt": "go on"}))
+
+    def w_hook(self, data):
+        from mirror_core import nudge
+        return nudge.hook_main(json.dumps(data))
+
+    def test_state_holds_no_prompt_text(self):
+        self.on()
+        self.w.on_prompt("SECRET-PHRASE-123 please", True, now=self.next_mon)
+        self.assertNotIn("SECRET-PHRASE-123", (Path(self.tmp.name) / "welcome.json").read_text(encoding="utf-8"))
+
+    def test_settings_validate(self):
+        self.assertIn("must be", self.w.configure("when", "weekly"))
+        self.assertIn("must be", self.w.configure("gap-days", "99"))
+        self.assertEqual(self.w.configure("gap-days", "5"), "gap-days set to 5.")
 
 
 class NudgeExperiment(Nudge):
