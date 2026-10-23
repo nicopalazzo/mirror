@@ -46,6 +46,16 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | A broken hook never blocks your prompt | Test `test_hook_never_raises`; 5-second timeout in `hooks.json` |
 | Backs off when ignored, and steps back for a day after 3 ignored nudges | Test `test_ignored_nudges_back_off_then_step_back` |
 
+The welcome-back line (`mirror_core/welcome.py`, called from the same hook) adds these:
+
+| Protection | How to verify |
+|---|---|
+| It reads only the clock and the prompt the hook receives; `~/.mirror/welcome.json` holds times, counts and settings, never message text | Test `test_state_holds_no_prompt_text` (welcome) |
+| Off until you type `/mirror:on`; `/mirror:off` stops it, `/mirror:snooze` pauses it | Tests `test_off_by_default`, `test_snooze_and_off`, `test_nudge_on_and_off_drive_the_welcome` |
+| It never opens the report for you and holds your message once; Enter sends it unchanged | Test `test_offers_first_prompt_of_a_new_week_once`; the line only names the `/mirror:report` command |
+| At most one offer a week; 3 skipped offers pause it for 30 days | Tests `test_long_gap_inside_a_week_does_not_offer_twice`, `test_three_skips_in_a_row_pause_for_a_month` |
+| A fault in it never stops the nudge or your prompt | `hook_main` catches errors around it; test `test_hook_never_raises` |
+
 Not verified yet: whether Claude also sees the `systemMessage` line (the docs say it is shown to the user and do not say it is added to context). Check in a live session before relying on it.
 
 A hook runs with your user rights outside Claude Code's sandbox, on every prompt. Installing from a marketplace added as a **local folder** runs the files in that folder as they are; installing from the GitHub marketplace runs a cached, versioned copy that only changes when you update.
