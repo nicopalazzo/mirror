@@ -24,6 +24,14 @@ from mirror_core.indexes import by_day  # noqa: E402
 FORBIDDEN_IMPORTS = {"socket", "ssl", "urllib", "http", "requests", "ftplib", "smtplib", "telnetlib", "xmlrpc",
                      "subprocess", "ctypes", "asyncio", "aiohttp", "httpx", "websocket", "websockets"}
 FORBIDDEN_CALLS = {"eval", "exec", "__import__", "compile"}
+# The one link out of the report: a plain feedback link in the footer, opened only if the reader clicks it.
+FEEDBACK_LINK = '<a href="https://tally.so/r/GexjMj" target="_blank" rel="noopener noreferrer">'
+
+
+def without_feedback_link(html):
+    """The report with its single allowed link removed, so the no-external-URL checks stay strict for everything else."""
+    assert html.count(FEEDBACK_LINK) == 1, "the report must carry the feedback link exactly once"
+    return html.replace(FEEDBACK_LINK, "<a>")
 
 
 def run_cli(argv, env):
@@ -170,8 +178,10 @@ class Security(Base):
         run_cli(["report", "--yes"], self.env)
         html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
         self.assertIn("Content-Security-Policy", html)
-        self.assertNotIn("http://", html.replace("http://www.w3.org", ""))
-        self.assertNotIn("https://", html)
+        rest = without_feedback_link(html)
+        self.assertNotIn("http://", rest.replace("http://www.w3.org", ""))
+        self.assertNotIn("https://", rest)
+        self.assertIn("default-src 'none'", html)  # the link is navigation only: the page still loads nothing
         for phrase in ("login page", "cookie and a token", "renames files", "bouton de déconnexion"):
             self.assertNotIn(phrase, html)
 
@@ -314,8 +324,9 @@ class QuizFirstRun(Base):
             run_cli(["report"], self.env)
             html = self._html()
             self.assertIn('"quiz": true', html)
-            self.assertNotIn("https://", html)
-            self.assertNotIn("http://", html.replace("http://www.w3.org", ""))
+            rest = without_feedback_link(html)
+            self.assertNotIn("https://", rest)
+            self.assertNotIn("http://", rest.replace("http://www.w3.org", ""))
             self.assertEqual(self._cfg()["quiz"], "shown")
             run_cli(["report"], self.env)
             self.assertIn('"quiz": false', self._html())
