@@ -39,6 +39,7 @@ svg{display:block;width:100%;height:auto}svg text{fill:var(--ink2);font-size:12p
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:14px;color:var(--ink2);margin:2px 0 6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
 .ramp{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);margin-top:6px}.ramp i{width:14px;height:10px;border-radius:2px;display:inline-block}
 .note{color:var(--muted);font-size:14px;margin:8px 0 0}.warn{border-left:3px solid var(--s4);padding-left:10px}
+.foot{margin:24px 0 0}.foot a{display:inline-flex;align-items:center;min-height:44px;font-size:16px;color:var(--ink2);text-decoration:underline}
 #tip{position:fixed;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.2);opacity:0;z-index:20;max-width:280px}
 details{margin-top:14px}summary{cursor:pointer;font-weight:600;font-size:16px;min-height:44px;display:flex;align-items:center}
 table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
@@ -92,7 +93,10 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 <p><button id="copy" type="button">Copy</button> <span id="copied" class="note"></span></p></div></details>
 
 <details><summary>My notes on how well this matched</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">Your answers to "Does this match how your day felt?", kept on this computer.</p><div class="tw"><table id="fb"></table></div></div></details>
-</div></div><div id="tip"></div>
+</div>
+<p class="foot"><a href="https://tally.so/r/GexjMj" target="_blank" rel="noopener noreferrer">Tried Mirror? Tell me what happened</a></p>
+<p class="note" style="margin-bottom:16px">A short form, optional. Mirror itself sends nothing: this link opens only if you click it.</p>
+</div><div id="tip"></div>
 <script>
 const D=/*__DATA__*/null;
 const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));

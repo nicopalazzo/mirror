@@ -30,7 +30,7 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | **Message text is dropped as soon as it is read.** Each message is labelled by simple rules, then only its type and length are kept. Project folders and paths become short hashes. | Test `test_readers_return_no_message_text_or_paths` |
 | Reports and share cards contain no message text | Tests `test_report_is_offline_and_has_no_prompt_text`, `test_share_card_has_numbers_only` |
 | The double-click launchers (`Mirror.command`, `Mirror.bat`) only run `mirror.py` and fetch nothing | Test `test_launchers_exist_and_do_not_fetch_anything`; CI also runs each launcher on Windows, macOS and Linux |
-| The HTML report cannot load anything from the internet | The report carries a strict content policy; test checks it and finds no external URLs |
+| The HTML report cannot load anything from the internet | The report carries a strict content policy; a test checks it and allows one external URL only: the feedback link in the footer, a plain link that opens only if the reader clicks it |
 | Works with the network switched off | On macOS: `sandbox-exec -p '(version 1)(allow default)(deny network*)' python3 mirror.py day --yes` |
 | First-run consent, and full removal | `mirror.py forget`; test `test_forget` |
 

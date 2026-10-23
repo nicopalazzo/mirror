@@ -6,6 +6,10 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 
 ## [Unreleased]
 
+### Added
+
+- A "Tell me what happened" feedback link in the report footer, to a short optional form. It is a plain link that opens only if you click it; Mirror still sends nothing, and the report still loads nothing from the internet. The report test now allows that one URL and no other.
+
 ## [0.4.0] - 2026-10-23
 
 Command-line tool and both plugins (Claude Code and Codex) at 0.4.0.
