@@ -6,6 +6,17 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-23
+
+Command-line tool and both plugins (Claude Code and Codex) at 0.4.0.
+
+### Added
+
+- Welcome-back line: after a break, the first message of a new week (or after 3 days away, at most once a week) is held once with "Welcome back. Take a quick look in the Mirror? Last week is ready." Enter sends your message unchanged; `/mirror:report` opens the report. Mirror never opens it for you, and Claude never sees the line. Off until you type `/mirror:on`, which now turns on the nudge and the welcome together; `/mirror:off` stops both and `/mirror:snooze` pauses both. State is counts and times only, in `~/.mirror/welcome.json`.
+- It logs only whether each offer led to a report (opened), was carried past (skipped), snoozed or switched off. After 3 skipped offers in a row it pauses for 30 days and says so once. No streaks, badges or "you missed a week" copy.
+- `mirror.py welcome` (`on`, `off`, `status`, `when start-of-week|start-of-day`, `gap-days`, `holdback`): `status` shows the counts; `holdback 0.5` silently holds back that share of offers, for a comparison like the nudge's. Off by default.
+- Design and test plan: `research/MIRROR-WELCOME-BACK-DRAFT.md`. Not yet tested in a live Claude Code or Codex session.
+
 ## [0.3.1] - 2026-10-09
 
 Command-line tool and both plugins (Claude Code and Codex) at 0.3.1.

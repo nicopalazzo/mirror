@@ -33,7 +33,7 @@ import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import store
+from . import store, welcome
 from .classify import classify
 
 DEFAULTS = {
@@ -237,17 +237,21 @@ def respond(action, minutes=None, now=None):
         else:
             when = f"after {st['threshold']} messages without a question or pushback"
         out = (f"Mirror nudges are on. You'll see one line {when}, at most once every "
-               f"{_dur(st['cooldown_minutes'])}. /mirror:off stops them.")
+               f"{_dur(st['cooldown_minutes'])}. At the start of a week, Mirror also offers a quick look at your last "
+               f"week. /mirror:off stops both.")
+        welcome.set_enabled(True, now)
     elif action == "off":
         _close_pending(st, "off")
         st["enabled"] = False
         _log(st, "off")
-        out = "Mirror nudges are off. /mirror:on turns them back on."
+        out = "Mirror nudges and the welcome-back line are off. /mirror:on turns them back on."
+        welcome.set_enabled(False, now)
     elif action == "snooze":
         _close_pending(st, "snooze")
         mins = minutes or st["cooldown_minutes"]
         st["snooze_until"] = _iso(now + timedelta(minutes=mins))
         _log(st, "snooze", minutes=mins)
+        welcome.snooze(now + timedelta(minutes=mins), now)
         out = f"Mirror is quiet for {mins // 60 if mins >= 60 else mins} {'hours' if mins >= 60 else 'minutes'}."
     elif action == "check":
         _close_pending(st, "check")
@@ -370,7 +374,16 @@ def hook_main(stdin_text):
     try:
         data = json.loads(stdin_text or "{}")
         # Claude Code sends "prompt"; the docs name it "user_prompt". Accept both.
-        msg = on_prompt(data.get("session_id"), data.get("prompt") or data.get("user_prompt") or "")
+        prompt = data.get("prompt") or data.get("user_prompt") or ""
+        try:  # the welcome-back line goes first; a fault in it must never stop the nudge
+            line = welcome.on_prompt(prompt, classify(prompt) in RESET_KINDS + COUNT_KINDS)
+        except Exception:
+            line = None
+        if line == welcome.PAUSE_LINE:
+            return json.dumps({"systemMessage": localize(line)})
+        if line:
+            return json.dumps({"decision": "block", "reason": localize(line)})
+        msg = on_prompt(data.get("session_id"), prompt)
         if msg in (INTRO, STEP_BACK):
             return json.dumps({"systemMessage": localize(msg)})
         if msg:

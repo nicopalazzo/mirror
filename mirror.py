@@ -187,6 +187,11 @@ def cmd_report(args):
     build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz)
     if quiz:
         store.set_quiz("shown")  # the quiz is in this page only; Mirror keeps no copy of the guesses
+    try:
+        from mirror_core import welcome
+        welcome.note_report()
+    except Exception:
+        pass
     print("Report saved in your Mirror folder: " + str(out))
     print("Open it again any time with the 'Mirror Report' launcher, or: python3 mirror.py report --open")
     if args.open:
@@ -284,6 +289,18 @@ def cmd_nudge(args):
     return 0
 
 
+def cmd_welcome(args):
+    from mirror_core import nudge, welcome
+    if args.action in ("on", "off"):
+        welcome.set_enabled(args.action == "on")
+        print(nudge.localize(f"Welcome-back line {args.action}."))
+    elif args.action in welcome.SETTINGS:
+        print(welcome.configure(args.action, args.value))
+    else:
+        print(nudge.localize(welcome.status()))
+    return 0
+
+
 def cmd_forget(args):
     print("Deleted " + str(store.home()) if store.forget() else "Nothing to delete.")
     return 0
@@ -325,14 +342,17 @@ def main(argv=None):
     ng.add_argument("value", nargs="?", help="with a setting: its new value, e.g. 'nudge rule ratio' or 'nudge holdback 0.5'")
     ng.add_argument("--minutes", type=int, default=None)
     ng.add_argument("--threshold", type=int, default=None, help="with 'on': messages without a question before a nudge")
+    wl = sub.add_parser("welcome", help="the welcome-back line at the start of a week: on/off, settings, status")
+    wl.add_argument("action", nargs="?", default="status", choices=["on", "off", "status", "when", "gap-days", "holdback"])
+    wl.add_argument("value", nargs="?", help="with a setting: its new value, e.g. 'welcome when start-of-day'")
     sub.add_parser("forget", help="delete everything Mirror stored")
     args = p.parse_args(argv)
     if not args.cmd:
         p.print_help()
         return 0
-    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge"):
+    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome"):
         return {"explain": cmd_explain, "forget": cmd_forget, "share-card": cmd_share,
-                "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge}[args.cmd](args)
+                "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome}[args.cmd](args)
     if args.cmd == "sources":
         return cmd_sources(args) or 0
     if args.cmd == "doctor":
