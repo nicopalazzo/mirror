@@ -6,10 +6,6 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 
 ## [Unreleased]
 
-### Added
-
-- A "Tell me what happened" feedback link in the report footer, to a short optional form. It is a plain link that opens only if you click it; Mirror still sends nothing, and the report still loads nothing from the internet. The report test now allows that one URL and no other.
-
 ## [0.4.0] - 2026-10-23
 
 Command-line tool and both plugins (Claude Code and Codex) at 0.4.0.
@@ -20,6 +16,7 @@ Command-line tool and both plugins (Claude Code and Codex) at 0.4.0.
 - It logs only whether each offer led to a report (opened), was carried past (skipped), snoozed or switched off. After 3 skipped offers in a row it pauses for 30 days and says so once. No streaks, badges or "you missed a week" copy.
 - `mirror.py welcome` (`on`, `off`, `status`, `when start-of-week|start-of-day`, `gap-days`, `holdback`): `status` shows the counts; `holdback 0.5` silently holds back that share of offers, for a comparison like the nudge's. Off by default.
 - Design and test plan: `research/MIRROR-WELCOME-BACK-DRAFT.md`. Not yet tested in a live Claude Code or Codex session.
+- A "Tell me what happened" feedback link in the report footer, to a short optional form. It is a plain link that opens only if you click it; Mirror still sends nothing, and the report still loads nothing from the internet. The report test now allows that one URL and no other.
 
 ## [0.3.1] - 2026-10-09
 
