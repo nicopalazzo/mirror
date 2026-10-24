@@ -73,6 +73,10 @@ INTRO = ("Mirror nudges are off. Type /mirror:on to turn them on. "
          "Mirror counts your messages but never stores or sends what you write.")
 STEP_BACK = ("No answer to the last 3 nudges, so Mirror will stay quiet for a day.\n"
              "/mirror:on: resume · /mirror:off: turn off")
+# The mod-area band (24 Oct 2026) draws the nudge above the prompt with its own buttons. While it says it is
+# there (a fresh heartbeat for this session in band.json), the blocked prompt carries only a pointer to it.
+BAND_LINE = "Mirror is holding this message: answer in the band above \u2191"
+BAND_FRESH_SECONDS = 60
 
 
 _rand = random.random  # replaced in tests
@@ -130,6 +134,20 @@ def save(st):
     tmp = _path().with_suffix(".tmp")
     tmp.write_text(json.dumps(st, indent=1), encoding="utf-8")
     tmp.replace(_path())
+
+
+def band_present(session_id, now=None):
+    """True when the mod-area band wrote a heartbeat for this session in the last BAND_FRESH_SECONDS."""
+    try:
+        data = json.loads((store.home() / "band.json").read_text(encoding="utf-8"))
+        seen = _parse((data.get("sessions") or {}).get(session_id or ""))
+        if seen is None:
+            return False
+        if seen.tzinfo is None:
+            seen = seen.replace(tzinfo=timezone.utc)
+        return timedelta(0) <= (now or _now()) - seen <= timedelta(seconds=BAND_FRESH_SECONDS)
+    except (OSError, ValueError, AttributeError, TypeError):
+        return False
 
 
 def _log(st, event, **kw):
@@ -387,7 +405,9 @@ def hook_main(stdin_text):
         if msg in (INTRO, STEP_BACK):
             return json.dumps({"systemMessage": localize(msg)})
         if msg:
-            return json.dumps({"decision": "block", "reason": localize(msg)})
+            # Still held either way; with the band showing the nudge, the chat gets one short pointer.
+            reason = BAND_LINE if band_present(data.get("session_id")) else localize(msg)
+            return json.dumps({"decision": "block", "reason": reason})
     except Exception:  # never break the user's prompt
         return ""
     return ""
