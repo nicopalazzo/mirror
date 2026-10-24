@@ -6,6 +6,14 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-24
+
+Command-line tool and both plugins (Claude Code and Codex) at 0.4.1.
+
+### Added
+
+- Band handover: when the mod-area band (a Claude Code mod that draws above the prompt) is running in the same session, it writes a heartbeat to `~/.mirror/band.json` (session id and time only). While that heartbeat is under 60 seconds old, a nudge still holds the message, but the chat shows one short line, "Mirror is holding this message: answer in the band above ↑", and the band shows the nudge with its buttons (Check it, Snooze, Dismiss, Send anyway, Turn off Mirror). Without the band, or with a stale heartbeat, the nudge is unchanged. Codex never writes the heartbeat, so its behaviour is unchanged. Not yet tested in a live session.
+
 ## [0.4.0] - 2026-10-23
 
 Command-line tool and both plugins (Claude Code and Codex) at 0.4.0.
