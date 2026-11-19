@@ -22,7 +22,7 @@ goto end
 exit /b %errorlevel%
 
 :nopython
-echo Mirror needs Python 3.8 or newer, and I could not find it.
+echo Mirror needs Python 3.9 or newer, and I could not find it.
 echo Install it from https://www.python.org/downloads/ and double-click this file again.
 
 :end

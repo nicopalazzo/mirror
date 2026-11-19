@@ -15,7 +15,7 @@ It is an **exploration**, not a test, a score or a diagnosis. The numbers are qu
 
 ## Quick start (about 2 minutes)
 
-You need Python 3.8 or newer, and at least a few days of Claude Code, Codex or Cursor use.
+You need Python 3.9 or newer, and at least a few days of Claude Code, Codex or Cursor use.
 
 1. Download the zip from the [latest release](https://github.com/nicopalazzo/mirror/releases/latest) (or `git clone https://github.com/nicopalazzo/mirror`) and unzip it.
 2. **Mac:** double-click `Mirror.command`. **Windows:** double-click `Mirror.bat`. Your computer will warn that the file is unsigned the first time; the steps are under [Easiest: double-click](#easiest-double-click).
@@ -27,7 +27,7 @@ Nothing leaves your computer. Mirror has no network code. The only link out is a
 ## Your data never leaves your computer
 
 - **No network code.** Mirror imports no networking library. A test fails if one is added.
-- **Nothing to install.** Python 3.8 or newer, standard library only. Mirror checks your version and tells you what to do if it is too old.
+- **Nothing to install.** Python 3.9 or newer, standard library only. Mirror checks your version and tells you what to do if it is too old.
 - **It opens session files only:** `~/.claude/projects/*/*.jsonl`, `~/.codex/sessions/**/rollout-*.jsonl` (plus `~/.codex/archived_sessions`) and `~/.cursor/projects/*/agent-transcripts/*/*.jsonl`. It never opens credentials, settings, MCP configuration, canvases, subagent transcripts or databases in those folders. A test checks this against decoy files.
 - **First run asks for permission** and lists exactly what it will read.
 - **Your messages are not kept, not even in memory.** Each one is labelled by simple rules the moment it is read and only its type and length survive. Reports and the share card contain numbers only, no message text. (The report page does show your own notes, so send the share card, not the report file.)
@@ -45,13 +45,13 @@ Nothing leaves your computer. Mirror has no network code. The only link out is a
 The files are not signed, so your computer will warn you the first time:
 - **Mac:** "cannot be opened because it is from an unidentified developer". Right-click the file, choose **Open**, then **Open** again. If that option is missing: System Settings, Privacy & Security, scroll down, **Open Anyway**. A zip download can also lose the file's "runnable" flag; if double-clicking does nothing, use the terminal method below or `git clone`.
 - **Windows:** SmartScreen says "Windows protected your PC". Choose **More info**, then **Run anyway**.
-- **No Python?** Both launchers say so. Install Python 3.8+ from python.org (on a Mac without it, macOS may offer to install developer tools; that also works).
+- **No Python?** Both launchers say so. Install Python 3.9+ from python.org (on a Mac without it, macOS may offer to install developer tools; that also works).
 
 Both launchers only run `mirror.py`. They download nothing, and a test checks that.
 
 ## Run it in a terminal
 
-You need Python 3.8+ (check with `python3 --version`, or `py --version` on Windows). Then, in the `mirror` folder:
+You need Python 3.9+ (check with `python3 --version`, or `py --version` on Windows). Then, in the `mirror` folder:
 
 | | macOS / Linux | Windows |
 |---|---|---|
@@ -123,7 +123,7 @@ At the end of `day`, Mirror asks whether the numbers match how the day felt. Tha
 - **Cursor has no reply times.** Its logs put a time only on your messages, so "quick approvals" cannot be measured for Cursor and active time is approximate. The report says so. I have checked the Cursor reader against one person's Mac logs only; the folder is `~/.cursor` on every system, but Windows layouts are unverified.
 - **Claude Code deletes old sessions after about 30 days** unless you raise `cleanupPeriodDays` in its settings, so history is short.
 - **"Quick approval" is an arbitrary 15-second line.** Change it with `--quick-seconds`.
-- **Different Python or OS versions:** the code is checked for Python 3.8 syntax and the automated tests run on Python 3.8 to 3.13 on Mac, Linux and Windows. If a setup still fails, `doctor` prints what is needed to fix it, without any of your text.
+- **Different Python or OS versions:** the automated tests run on Python 3.9 to 3.13 on Mac and Windows, and on 3.11 to 3.13 on Linux. If a setup still fails, `doctor` prints what is needed to fix it, without any of your text.
 - **Mac and Linux are tested here; Windows is covered by the automated tests in `.github/workflows/test.yml` but has not been tried by hand.** Tell us what breaks.
 
 ## Tests
