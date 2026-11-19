@@ -8,7 +8,7 @@ TEST=0
 if [ "$1" = "--test" ]; then TEST=1; fi   # used by the automated tests: no questions, no browser, no pause
 
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "Mirror needs Python 3.8 or newer, and I could not find it."
+  echo "Mirror needs Python 3.9 or newer, and I could not find it."
   echo "Install it from https://www.python.org/downloads/ and double-click this file again."
   [ $TEST -eq 0 ] && read -r -p "Press Enter to close." _
   exit 1

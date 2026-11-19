@@ -6,9 +6,9 @@ Run:  python3 mirror.py day      (Windows:  py mirror.py day)
 """
 import sys
 
-if sys.version_info < (3, 8):
+if sys.version_info < (3, 9):
     sys.stderr.write(
-        "Mirror needs Python 3.8 or newer; this is Python %d.%d.\n"
+        "Mirror needs Python 3.9 or newer; this is Python %d.%d.\n"
         "Get a current Python from https://www.python.org/downloads/ (on Windows also try: py -3 mirror.py day)\n"
         % sys.version_info[:2]
     )
