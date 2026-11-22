@@ -184,7 +184,17 @@ def cmd_report(args):
     coverage = [{"tool": v["tool"], "first": min(v["dates"]).isoformat(), "last": max(v["dates"]).isoformat(),
                  "days": len(v["dates"]), "messages": v["messages"]} for v in cov.values() if v["dates"]]
     quiz = _quiz_due(all_days)
-    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz)
+    from mirror_core import guess
+    just = None
+    if quiz:
+        guess.mark_asked(all_days)  # never the quiz and the weekly guess on the same open
+    elif sys.stdin.isatty():
+        c = guess.due(all_days)
+        if c:
+            v = guess.ask(c)
+            if v is not None:
+                just = dict(c, guess=v)
+    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz, guess=guess.for_report(just))
     if quiz:
         store.set_quiz("shown")  # the quiz is in this page only; Mirror keeps no copy of the guesses
     try:
@@ -301,6 +311,16 @@ def cmd_welcome(args):
     return 0
 
 
+def cmd_guess(args):
+    from mirror_core import guess
+    if args.action in ("on", "off"):
+        guess.set_enabled(args.action == "on")
+        print(f"Weekly guess {args.action}.")
+    else:
+        print(guess.status())
+    return 0
+
+
 def cmd_forget(args):
     print("Deleted " + str(store.home()) if store.forget() else "Nothing to delete.")
     return 0
@@ -345,14 +365,16 @@ def main(argv=None):
     wl = sub.add_parser("welcome", help="the welcome-back line at the start of a week: on/off, settings, status")
     wl.add_argument("action", nargs="?", default="status", choices=["on", "off", "status", "when", "gap-days", "holdback"])
     wl.add_argument("value", nargs="?", help="with a setting: its new value, e.g. 'welcome when start-of-day'")
+    gs = sub.add_parser("guess", help="the one question before a new week's report: on/off, status")
+    gs.add_argument("action", nargs="?", default="status", choices=["on", "off", "status"])
     sub.add_parser("forget", help="delete everything Mirror stored")
     args = p.parse_args(argv)
     if not args.cmd:
         p.print_help()
         return 0
-    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome"):
+    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome", "guess"):
         return {"explain": cmd_explain, "forget": cmd_forget, "share-card": cmd_share,
-                "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome}[args.cmd](args)
+                "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome, "guess": cmd_guess}[args.cmd](args)
     if args.cmd == "sources":
         return cmd_sources(args) or 0
     if args.cmd == "doctor":

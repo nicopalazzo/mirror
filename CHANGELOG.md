@@ -6,6 +6,12 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 
 ## [Unreleased]
 
+### Added
+
+- Guess first, every week: the first `report` of a new calendar week, run in a terminal, asks one question before the page is built: "What share of your messages last week were a question or pushback?" The report then opens with your guess next to what Mirror counted for last week (Monday to Sunday), as a gap in points, with one question to ask yourself. Enter skips, silently, and the week is not asked again. Never on the same open as the first-run quiz, and only when last week has at least 10 messages. Not asked from `/mirror:report` or any other run without a terminal.
+- `~/.mirror/guess.json` keeps one entry per week: the guess and the count (two numbers), or the week alone when skipped. A "My weekly guesses" table in the report lists past weeks with their gap. No streaks, scores, badges or "right/wrong". `mirror.py guess off` stops the question, `guess on` brings it back, `guess status` shows the setting; `forget` deletes the file.
+- The question is asked in the terminal, not the page, because the page is a static file that cannot save anything to `~/.mirror` without network code.
+
 ## [0.4.1] - 2026-10-24
 
 Command-line tool and both plugins (Claude Code and Codex) at 0.4.1.

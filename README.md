@@ -40,7 +40,7 @@ Nothing leaves your computer. Mirror has no network code. The only link out is a
 1. Get the folder onto your computer (download the zip from GitHub and unzip it, or `git clone`).
 2. **Mac:** double-click **`Mirror.command`**. **Windows:** double-click **`Mirror.bat`**.
 3. A small window opens. The first time, it lists what Mirror will read and asks `y/N`. It then shows how today went, asks whether that matched your day, and opens the report in your browser.
-4. **To open the report again later,** double-click **`Mirror Report.command`** (Mac) or **`Mirror Report.bat`** (Windows). It rebuilds the report and opens it without asking anything. Reports are also kept in a normal folder called **`Mirror`** in your home folder, so you can find them in Finder or Explorer.
+4. **To open the report again later,** double-click **`Mirror Report.command`** (Mac) or **`Mirror Report.bat`** (Windows). It rebuilds the report and opens it. Once a week it first asks for your guess about last week (Enter skips). Reports are also kept in a normal folder called **`Mirror`** in your home folder, so you can find them in Finder or Explorer.
 
 The files are not signed, so your computer will warn you the first time:
 - **Mac:** "cannot be opened because it is from an unidentified developer". Right-click the file, choose **Open**, then **Open** again. If that option is missing: System Settings, Privacy & Security, scroll down, **Open Anyway**. A zip download can also lose the file's "runnable" flag; if double-clicking does nothing, use the terminal method below or `git clone`.
@@ -64,9 +64,12 @@ You need Python 3.9+ (check with `python3 --version`, or `py --version` on Windo
 | Something looks wrong: versions and counts, no text | `python3 mirror.py doctor` | `py mirror.py doctor` |
 | Record whether a day's numbers matched (used by the skill) | `python3 mirror.py feedback --match partly` | `py mirror.py feedback --match partly` |
 | Read from a non-default folder | `python3 mirror.py day --cursor-dir /path/to/.cursor` (also `--claude-dir`, `--codex-dir`) | same with `py` |
+| Turn the weekly guess off or on | `python3 mirror.py guess off` | `py mirror.py guess off` |
 | Delete everything Mirror stored | `python3 mirror.py forget` | `py mirror.py forget` |
 
 If `py` is not found on Windows, try `python`. Use `--yes` after the command to accept the first-run notice without being asked.
+
+**Guess first, every week.** The first `report` of a new week asks one question in the terminal before it builds the page: "What share of your messages last week were a question or pushback?" Type a number from 0 to 100, or press Enter to skip. The report then shows your guess next to what Mirror counted, as a gap, with one question to ask yourself. Mirror keeps the two numbers in `~/.mirror/guess.json` and lists past weeks in the report. It never scores the guess. It is not asked on the same open as the first-run quiz, or when the report is built without a terminal (for example from `/mirror:report`).
 
 ## Nudges inside Claude Code (plugin)
 

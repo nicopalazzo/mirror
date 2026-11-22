@@ -34,6 +34,19 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | Works with the network switched off | On macOS: `sandbox-exec -p '(version 1)(allow default)(deny network*)' python3 mirror.py day --yes` |
 | First-run consent, and full removal | `mirror.py forget`; test `test_forget` |
 
+## The weekly guess (`mirror_core/guess.py`)
+
+`report` asks one question in the terminal at the start of a new week, before it builds the page. It reads nothing new: the count comes from the same labelled numbers as the rest of the report.
+
+| Protection | How to verify |
+|---|---|
+| `~/.mirror/guess.json` holds a setting and, per week, the week, your guess and the count: numbers only, never message text. A skip stores the week alone | Tests `test_state_holds_two_numbers_per_week_and_no_text`, `test_enter_skips_silently_and_is_not_asked_again_that_week` |
+| Asked only in a terminal, at most once a week, never on the same open as the first-run quiz. Runs without a terminal (`/mirror:report`, launchers in test mode) ask nothing and store nothing | Tests `test_asks_once_a_week_and_the_page_shows_the_gap`, `test_never_on_the_same_open_as_the_first_run_quiz`, `test_not_asked_without_a_terminal_and_nothing_stored` |
+| `mirror.py guess off` stops it; `forget` deletes the file with the rest of `~/.mirror` | Test `test_guess_off_stops_the_question_and_forget_deletes_it` |
+| The report shows the gap and past gaps, with no score, streak or verdict | Test `test_no_score_streak_or_verdict_in_the_words` |
+
+The report page now contains your past guesses next to the counts. Like your notes, they are yours: send the share card (which does not include them), not the report file.
+
 ## The nudge plugin (Claude Code)
 
 | Protection | How to verify |

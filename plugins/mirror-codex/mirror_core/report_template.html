@@ -62,12 +62,15 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 .qz .acts .go:disabled{opacity:.45;cursor:default}
 .qz .acts .lnk{border:0;background:none;text-decoration:underline;min-height:44px;font-size:15px;color:var(--ink2)}
 .qz .acts button{min-height:52px;font-size:17px}
+.gs{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0 4px}.gs .val{font-size:34px;font-weight:700;line-height:1.05;letter-spacing:-.02em}.gs .vs{font-size:14px;color:var(--ink2)}
+.gline{margin:10px 0 0}.gline svg{max-width:520px}
 @media (min-width:600px){.qz .card{padding:28px}.qz .acts{flex-direction:row-reverse}.qz .acts button{width:auto;padding:8px 24px}.qz .acts .go{flex:1}}
 </style></head><body><div class="wrap" id="wrap">
 <div class="top"><div><h1>Mirror</h1><p class="sub" id="range"></p></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="badge" id="cov"></span><button id="theme" type="button">Theme</button></div></div>
 <p class="note" id="disc" style="margin:0 0 12px"></p>
 <div id="quiz" hidden></div><div id="reveal" hidden></div>
 <div id="body">
+<div id="guess" hidden></div>
 
 <div class="card"><p class="eyebrow">What changed</p><div class="sigs" id="signals"></div></div>
 <div class="grid tiles" id="tiles"></div>
@@ -91,6 +94,8 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 <details id="shareBox"><summary>Numbers to share, if you choose</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">What <code>share-card</code> prints: numbers only, never your messages. Mirror sends nothing; copying is your decision.</p>
 <p><label style="display:flex;align-items:center;gap:10px;min-height:44px"><input type="checkbox" id="incnote" style="width:22px;height:22px;margin:0"> Include my notes</label></p><textarea id="card" readonly rows="10"></textarea>
 <p><button id="copy" type="button">Copy</button> <span id="copied" class="note"></span></p></div></details>
+
+<details id="guessHist" hidden><summary>My weekly guesses</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">Each week you guessed, next to what Mirror counted: the share of your messages that were a question or pushback. Kept on this computer. A gap is a question, not a mark.</p><div class="tw"><table id="gtab"></table></div></div></details>
 
 <details><summary>My notes on how well this matched</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">Your answers to "Does this match how your day felt?", kept on this computer.</p><div class="tw"><table id="fb"></table></div></div></details>
 </div>
@@ -252,9 +257,26 @@ function card(){const inc=$('incnote').checked;const last=D.feedback.slice(-7).m
 $('card').value=card();$('incnote').onchange=()=>{$('card').value=card()};
 $('copy').onclick=()=>{const tx=$('card');tx.select();let ok=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tx.value);ok=true}else{ok=document.execCommand('copy')}}catch(e){try{ok=document.execCommand('copy')}catch(e2){}}$('copied').textContent=ok?'Copied.':'Select the text above and copy it yourself.'};
 $('fb').innerHTML=D.feedback.length?'<tr><th>Day</th><th>Did it match?</th><th>Your note</th></tr>'+D.feedback.map(x=>`<tr><td>${esc(x.day)}</td><td>${esc(x.match)}</td><td>${esc(x.note||'')}</td></tr>`).join(''):'<tr><td>None yet. Answer the question at the end of the day summary.</td></tr>';
+// ---------- weekly guess (asked in the terminal before this page was built; kept in ~/.mirror) ----------
+guessInit(fmt);
 // ---------- paint ----------
 const paintAll=()=>Object.keys(CH).forEach(paint);paintAll();$('more').addEventListener('toggle',()=>{if($('more').open)paintAll()});
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(paintAll,150)});
+}
+function guessInit(fmt){
+ const G=D.guess||{now:null,history:[]},pc=v=>(Math.round(v*10)/10)+'%';
+ const isoMon=k=>{const [y,w]=k.split('-W').map(Number),j=new Date(Date.UTC(y,0,4)),d=(j.getUTCDay()+6)%7;return new Date(Date.UTC(y,0,4-d+(w-1)*7,12)).getTime()};
+ const gap=(g,c)=>{const d=Math.round(Math.abs(g-c)*10)/10;return d<0.5?'the same as the count':d+' point'+(d===1?'':'s')+(g>c?' above':' below')+' the count'};
+ if(G.now){const n=G.now,g=n.guess,c=n.share,lo=Math.min(g,c),hi=Math.max(g,c),X=v=>8+v*2.84;
+  const line=`<svg viewBox="0 0 300 46" role="img" aria-label="On a scale from 0 to 100 percent: your guess ${pc(g)}, Mirror counted ${pc(c)}."><line x1="8" x2="292" y1="18" y2="18" stroke="var(--grid)" stroke-width="6" stroke-linecap="round"/><line x1="${X(lo)}" x2="${X(hi)}" y1="18" y2="18" stroke="var(--band)" stroke-width="6"/><circle cx="${X(g)}" cy="18" r="7" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5"/><circle cx="${X(c)}" cy="18" r="6" fill="var(--s1)"/><text x="8" y="42">0%</text><text x="150" y="42" text-anchor="middle">50%</text><text x="292" y="42" text-anchor="end">100%</text></svg>`;
+  const box=$('guess');box.hidden=false;box.className='card';box.style.marginBottom='14px';
+  box.innerHTML=`<p class="eyebrow">Guess first</p><h2>Your guess next to last week's count</h2><p class="sub">${esc(fmt(n.start))} to ${esc(fmt(n.end))} · ${n.messages.toLocaleString('en-GB')} messages · the share that were a question or pushback</p>
+  <div class="gs"><div><div class="vs">You guessed</div><div class="val">${pc(g)}</div></div><div><div class="vs">Mirror counted</div><div class="val" style="color:var(--s1)">${pc(c)}</div></div></div>
+  <div class="gline">${line}<p class="legend" style="margin:4px 0 0"><span><i style="background:var(--surface);border:2px solid var(--ink);border-radius:50%"></i>Your guess</span><span><i style="background:var(--s1);border-radius:50%"></i>Mirror counted</span></p></div>
+  <p class="st" style="margin:10px 0 0;font-weight:600">Your guess was ${esc(gap(g,c))}.</p><p class="note" style="color:var(--ink2)">Ask yourself: ${esc(n.ask)}</p>
+  <p class="note">Labels come from simple rules and sometimes miss, so a gap can be Mirror's mistake as much as yours.</p>`}
+ if(G.history.length){$('guessHist').hidden=false;
+  $('gtab').innerHTML='<tr><th>Week of</th><th class="n">You guessed</th><th class="n">Mirror counted</th><th>Gap</th></tr>'+G.history.slice().reverse().map(h=>`<tr><td>${esc(fmt(isoMon(h.week)))}</td><td class="n">${pc(h.guess)}</td><td class="n">${pc(h.count)}</td><td>${esc(gap(h.guess,h.count).replace(' the count',''))}</td></tr>`).join('')}
 }
 // ---------- one-time quiz (first report only; answers live in this page and nowhere else) ----------
 function quizInit(){
