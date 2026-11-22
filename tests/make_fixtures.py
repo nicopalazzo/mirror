@@ -91,6 +91,44 @@ def build(root: Path, base=None):
     return claude, codex, base
 
 
+QUESTION = "What does this function return when the list is empty?"
+DIRECTIVE = "Add a test for the parser"
+APPROVAL = "ok"
+
+
+def drift_plan():
+    """(minutes after the stretch start, text) for one long synthetic Claude Code session, used by the session-drift tests.
+    Stretch 1 runs 150 minutes with a message every 5 minutes; after a 45-minute gap, stretch 2 has 4 messages."""
+    q, d, a = QUESTION, DIRECTIVE, APPROVAL
+    first = [q, d, q, d, q, d]                    # 0-30 min: 3 of 6 ask
+    second = [q, a, d, a, d, a]                   # 30-60 min: 1 of 6 asks, 3 slow approvals
+    third = [d, a] * 6                            # 60-120 min: 0 ask, 6 quick approvals
+    fourth = [a, a, d, a, a, d, a]                # 120-150 min: 0 ask, 5 quick approvals
+    plan = [(5 * i, text) for i, text in enumerate(first + second + third + fourth)]
+    plan += [(195 + 5 * i, text) for i, text in enumerate([q, q, d, d])]  # stretch 2, after a 45-minute gap
+    return plan
+
+
+def build_drift(root: Path, base=None):
+    """Creates root/claude with one long session starting at 12:00 local. Returns (claude_dir, start_datetime)."""
+    base = base or datetime.now().astimezone().replace(hour=12, minute=0, second=0, microsecond=0)
+    claude = root / "claude"
+    proj = claude / "projects" / "-home-demo-long"
+    proj.mkdir(parents=True)
+    rows = []
+    for n, (m, text) in enumerate(drift_plan()):
+        dt = base + timedelta(minutes=m)
+        rows.append({"type": "user", "timestamp": _z(dt), "cwd": "/home/demo/long", "message": {"role": "user", "content": text}})
+        # The AI changes a file before the next message: 4 min after it in the first hour (so an approval is slow),
+        # 4 min 50 s after it later (so the approval 10 s later is quick).
+        wait = timedelta(minutes=4) if m < 60 else timedelta(minutes=4, seconds=50)
+        rows.append({"type": "assistant", "timestamp": _z(dt + wait), "message": {"id": "d%d" % n, "model": "claude-test-1", "role": "assistant",
+                     "content": [{"type": "tool_use", "id": "w%d" % n, "name": "Edit", "input": {}}],
+                     "usage": {"input_tokens": 1, "output_tokens": 1, "cache_read_input_tokens": 0}}})
+    (proj / "sess-long.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    return claude, base
+
+
 if __name__ == "__main__":
     import sys
     out = Path(sys.argv[1])

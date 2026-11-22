@@ -25,7 +25,7 @@ Say, in the user's language:
 | What Mirror can see (counts files, opens none) | `mirror.py sources` |
 | Today, or another day | `mirror.py day --yes --no-feedback` (add `--day YYYY-MM-DD` or `--yesterday`) |
 | Last 7 days | `mirror.py week --yes` |
-| What a number means | `mirror.py explain challenge` (or `approval`, `delegation`, `focus`) |
+| What a number means | `mirror.py explain challenge` (or `approval`, `delegation`, `focus`, `drift`) |
 | Record whether the numbers matched | `mirror.py feedback --yes --match yes|no|partly --note "..."` |
 | Numbers to send, if the user chooses | `mirror.py share-card` |
 | Something looks wrong | `mirror.py doctor --yes` |

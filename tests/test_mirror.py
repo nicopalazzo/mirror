@@ -495,6 +495,97 @@ class ReportMobileFirst(unittest.TestCase):
             self.assertTrue(any(k in sel for k in ("svg text", ".eyebrow", ".ramp")), sel + " " + px + "px")
 
 
+class SessionDrift(unittest.TestCase):
+    """Use case 2: how messages change by minutes into a stretch and by hour. Synthetic logs only."""
+
+    def setUp(self):
+        from mirror_core.drift import drift
+        self.drift = drift
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.claude, self.start = make_fixtures.build_drift(self.root / "long")
+        self.turns, self.actions, _ = read_claude(self.claude)
+        self.env = {"MIRROR_HOME": str(self.root / "home"), "MIRROR_CLAUDE_DIR": str(self.claude),
+                    "MIRROR_CODEX_DIR": str(self.root / "none-codex"), "MIRROR_CURSOR_DIR": str(self.root / "none-cursor")}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_drift_pools_counts_by_minutes_into_a_stretch(self):
+        r = self.drift(self.turns, self.actions)
+        self.assertEqual(r["stretches"], 2)  # the 45-minute gap starts a new stretch
+        self.assertEqual(r["longest_minutes"], 150)
+        b = {c["label"]: c for c in r["buckets"]}
+        self.assertEqual([b[k]["messages"] for k in ("0-30 min", "30-60 min", "60-120 min", "120+ min")], [10, 6, 12, 7])
+        self.assertEqual(b["0-30 min"]["asked"], 5)        # 3 in stretch 1 and 2 in stretch 2, pooled
+        self.assertEqual(b["0-30 min"]["asked_pct"], 50.0)  # 5 of 10, not the mean of 50% and 50%
+        self.assertEqual(b["0-30 min"]["stretches"], 2)
+        self.assertEqual(b["60-120 min"]["asked_pct"], 0.0)
+        self.assertEqual((b["60-120 min"]["quick"], b["60-120 min"]["approvals"]), (6, 6))
+        self.assertGreater(b["0-30 min"]["median_chars"], b["120+ min"]["median_chars"])
+        self.assertEqual(b["120+ min"]["median_chars"], float(len(make_fixtures.APPROVAL)))
+
+    def test_drift_hides_cells_with_fewer_than_5(self):
+        r = self.drift(self.turns, self.actions)
+        h15 = r["hours"][(self.start.hour + 3) % 24]  # stretch 2: 4 messages
+        self.assertEqual(h15["messages"], 4)
+        self.assertIsNone(h15["asked_pct"])
+        self.assertIsNone(h15["median_chars"])
+        b = {c["label"]: c for c in r["buckets"]}
+        self.assertEqual(b["30-60 min"]["approvals"], 3)
+        self.assertIsNone(b["30-60 min"]["quick_pct"])  # 3 timed approvals: too few to show a share
+
+    def test_drift_totals_match_the_day_numbers(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        c2, x2, _ = make_fixtures.build(Path(tmp.name))
+        t2, a2, _ = read_claude(c2)
+        t3, a3, _ = read_codex(x2)
+        for turns, actions in ((self.turns, self.actions), (t2 + t3, a2 + a3)):
+            r = self.drift(turns, actions)
+            days = by_day(turns, actions).values()
+            for part in ("buckets", "hours"):
+                self.assertEqual(sum(c["messages"] for c in r[part]), sum(s["_counts"]["engaged"] for s in days))
+                self.assertEqual(sum(c["approvals"] for c in r[part]), sum(s["idx"]["approvals_after_writes"] for s in days))
+                self.assertEqual(sum(c["quick"] for c in r[part]), sum(s["idx"]["quick_approvals"] for s in days))
+
+    def test_drift_window_counts_only_its_days(self):
+        everything = self.drift(self.turns, self.actions)
+        self.assertEqual(self.drift(self.turns, self.actions, dates={self.start.date()}), everything)
+        other = self.drift(self.turns, self.actions, dates={self.start.date() - timedelta(days=30)})
+        self.assertEqual(sum(c["messages"] for c in other["buckets"]), 0)
+        self.assertEqual((other["stretches"], other["longest_minutes"]), (0, 0))  # stretches outside the window are not counted
+
+    def test_drift_week_and_report_have_no_message_text(self):
+        code, out = run_cli(["week", "--yes", "--skip-quiz"], self.env)
+        self.assertEqual(code, 0)
+        self.assertIn("How a stretch changes your messages", out)
+        self.assertIn("0-30 min", out)
+        self.assertIn("120+ min", out)
+        self.assertIn("1 hour with fewer than 5 messages not shown", out)
+        run_cli(["report", "--yes", "--skip-quiz"], self.env)
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        self.assertIn('id="drifttab"', html)
+        self.assertIn('"label": "60-120 min"', html)
+        for text in (out, html):
+            self.assertNotIn(make_fixtures.QUESTION, text)
+            self.assertNotIn(make_fixtures.DIRECTIVE, text)
+            self.assertNotIn("/home/demo/long", text)
+
+    def test_explain_drift_reveals_only(self):
+        code, out = run_cli(["explain", "drift"], {})
+        self.assertEqual(code, 0)
+        self.assertIn("What it cannot tell you: Fewer questions late in a stretch can mean the task got clear", out)
+        self.assertNotIn("practice", out.lower())
+        tpl = (ROOT / "mirror_core" / "report_template.html").read_text(encoding="utf-8")
+        block = tpl.split("session drift (pooled")[1].split("// ---------- calendar")[0]
+        _, week = run_cli(["week", "--yes", "--skip-quiz"], self.env)
+        week = week.split("How a stretch changes your messages")[1].split("Mirror is an exploration")[0]  # the disclaimer says "not a score"
+        for text in (out, block, week):  # what a person reads: the explain entry, the report block, the week section
+            for word in ("fatigue", "cognitive", "health", "score", "you should"):
+                self.assertNotIn(word, text.lower())
+
+
 class Docs(unittest.TestCase):
     def test_skill_frontmatter(self):
         s = (ROOT / "SKILL.md").read_text(encoding="utf-8")

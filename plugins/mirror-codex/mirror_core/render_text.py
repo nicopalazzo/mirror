@@ -116,7 +116,7 @@ def day_text(day, stats, all_days, tools_missing=(), limit_at=None):
     return "\n".join(lines)
 
 
-def week_text(all_days, end_day, days=7, limit_at=None):
+def week_text(all_days, end_day, days=7, drift=None, limit_at=None):
     from datetime import timedelta
     window = [(d, s) for d, s in all_days.items() if 0 <= (end_day - d).days < days]
     prev = [(d, s) for d, s in all_days.items() if days <= (end_day - d).days < 2 * days]
@@ -139,6 +139,9 @@ def week_text(all_days, end_day, days=7, limit_at=None):
         lines.append("Compared with your own earlier days only, never with other people.")
     else:
         lines.append("No earlier days to compare with yet.")
+    if drift and drift["stretches"]:
+        lines.append("")
+        lines.append(drift_text(drift))
     lines.append("")
     lines.append(DISCLAIMER)
     return "\n".join(lines)
@@ -146,10 +149,43 @@ def week_text(all_days, end_day, days=7, limit_at=None):
 
 def explain_text(key):
     e = INDEXES[key]
-    return "\n".join([
+    lines = [
         e["title"], "-" * len(e["title"]),
         "What it measures: " + e["measures"],
         "What it cannot tell you: " + e["cannot"],
         "A question to ask yourself: " + e["ask"],
-        "A practice you could try (untested, your call): " + e["practice"],
-    ])
+    ]
+    if e.get("practice"):  # some numbers only reveal and carry no practice
+        lines.append("A practice you could try (untested, your call): " + e["practice"])
+    return "\n".join(lines)
+
+
+def _drift_row(c):
+    q = "-" if c["asked_pct"] is None else f"{c['asked_pct']}%"
+    m = "-" if c["median_chars"] is None else f"{int(c['median_chars'] + 0.5)}"  # rounds like the report
+    qa = "-" if c["quick_pct"] is None else f"{c['quick']}/{c['approvals']}"
+    return f"  {c['label']:<12}{c['messages']:>9}{q:>16}{m:>14}{qa:>13}"
+
+
+def drift_text(d):
+    """Short section for `week`: how messages change by minutes into a stretch and by hour. No score, no advice."""
+    from .drift import first_and_last, in_n
+    lines = ["How a stretch changes your messages",
+             f"  A stretch: messages in one session with no gap over {d['gap_minutes']} minutes. "
+             f"{d['stretches']} stretches, the longest about {d['longest_minutes']} min.",
+             f"  {'minutes in':<12}{'messages':>9}{'asked/pushed':>16}{'median chars':>14}{'quick appr.':>13}"]
+    lines += [_drift_row(c) for c in d["buckets"] if c["messages"]]
+    hours = [c for c in d["hours"] if c["messages"] >= d["min_cell"]]
+    if hours:
+        lines.append("  hour of day")
+        lines += [_drift_row(c) for c in hours]
+    hidden = sum(1 for c in d["hours"] if 0 < c["messages"] < d["min_cell"])
+    if hidden:
+        lines.append(f"  ({hidden} hour{'s' if hidden != 1 else ''} with fewer than {d['min_cell']} messages not shown.)")
+    fl = first_and_last(d)
+    if fl:
+        a, b = fl
+        lines.append(f"  In the {a['label']} part, {in_n(a['asked_pct'])} messages asked or pushed back; in the {b['label']} part, {in_n(b['asked_pct'])}. "
+                     f"Median length: {int(a['median_chars'] + 0.5)} then {int(b['median_chars'] + 0.5)} characters.")
+    lines.append("  '-' means too few to show. Fewer questions late can mean the task got clear. `mirror explain drift` says more.")
+    return "\n".join(lines)

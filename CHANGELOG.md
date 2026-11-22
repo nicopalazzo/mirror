@@ -6,6 +6,10 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 
 ## [Unreleased]
 
+### Added
+
+- Session drift: how your messages change over a working stretch. A stretch is your messages in one session with no gap over 30 minutes. For the first 30 minutes, 30 to 60, 60 to 120 and after 120, and for each hour of the day, Mirror shows how many messages asked a question or pushed back, the median message length in characters, and quick approvals after file changes. Counts are added up first, then each share is worked out; a part with fewer than 5 messages is hidden. It appears as a section in `week` (this week's days) and as a fold-out table in the report (everything loaded), with a switch between minutes into a stretch and hour of day. `mirror.py explain drift` says what it cannot tell you: fewer questions late can mean the task got clear. No score, no limit, no advice. Message length was already kept; this is the first number that prints it. Tested on synthetic logs only.
+
 ## [0.5.0] - 2026-11-22
 
 Command-line tool and both plugins (Claude Code and Codex) at 0.5.0.
