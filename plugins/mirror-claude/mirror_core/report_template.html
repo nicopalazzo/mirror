@@ -75,6 +75,9 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 <div class="card" style="margin-top:14px"><div class="hd"><div><h2>Week by week</h2><p class="sub" id="heroSub"></p></div><button class="tbl" data-for="hero" type="button" aria-pressed="false">Table</button></div>
 <div class="ctl" id="metricTabs" role="group" aria-label="Metric"></div><div class="chart" id="hero"></div><p class="note" id="heroNote"></p></div>
 
+<div class="card" style="margin-top:14px" id="timeCard"><div class="hd"><div><h2>Time with AI</h2><p class="sub" id="timeSub"></p></div></div>
+<ul class="note" id="timeFacts" style="margin:4px 0 10px;padding-left:18px"></ul><div class="tw"><table id="timetab"></table></div><p class="note" id="timeNote"></p></div>
+
 <details id="more"><summary>More charts: mix, hours, scatter, every day</summary><div class="grid two" style="margin-top:8px">
 <div class="card"><div class="hd"><div><h2>What I said, as a share</h2><p class="sub">Weekly mix of message types, as shares so busy weeks do not dominate. Labels come from simple rules and are sometimes wrong.</p></div><button class="tbl" data-for="mix" type="button" aria-pressed="false">Table</button></div><div class="legend" id="mixLeg"></div><div class="chart" id="mix"></div></div>
 <div class="card"><div class="hd"><div><h2>When I send messages</h2><p class="sub" id="heatSub"></p></div><button class="tbl" data-for="heat" type="button" aria-pressed="false">Table</button></div><div class="ctl" id="heatTabs" role="group" aria-label="Heatmap metric"></div><div class="chart" id="heat"></div><p class="note" id="heatNote"></p></div>
@@ -241,6 +244,23 @@ CH.cal={svg(cw){const M=CALM[CM],map={};ALL.forEach(d=>map[d.date]=M.f(d));const
  table(){const M=CALM[CM];return tbl(['Day',M.label],ALL.slice(-30).reverse().map(d=>{const v=M.f(d);return[fmt(d.date),v===null?'n/a':f1(v)]}))+'<p class="note">Last 30 active days shown.</p>'}};
 function calTabs(){$('calTabs').innerHTML=Object.entries(CALM).map(([k,x])=>`<button type="button" aria-pressed="${k===CM}" data-k="${k}">${x.label}</button>`).join('');$('calTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{CM=b.dataset.k;calTabs();paint('cal')})}
 calTabs();
+// ---------- time with AI (facts only: when, how long, what you did at your limit) ----------
+{const NIGHT='05:00',L=D.limit||{},AT=L.enabled?L.at:null,EV=L.evenings||{};
+const WK=ALL.filter(d=>(LAST-t(d.date))/DAY<7&&d.last);
+const hm=m=>{m=Math.round(m||0);const h=Math.floor(m/60);return h?`${h} h ${String(m%60).padStart(2,'0')} min`:`${m} min`};
+const past=d=>!!AT&&(d.last>=AT||(d.first||'99')<NIGHT);
+const SAY={carried_on:'carried on',stopped:'stopped',left:'no message after it'};
+$('timeSub').textContent='The last 7 days: how long and how late. Gaps over 5 minutes are not counted as active time.';
+if(WK.length){const tot=sum(WK,d=>d.active_minutes),lt=WK.reduce((a,d)=>d.last>a.last?d:a,WK[0]),night=WK.filter(d=>d.first<NIGHT);
+ const facts=[`${hm(tot)} active over ${WK.length} days.`,`Latest activity: ${esc(lt.last)} on ${fmt(lt.date)}.`];
+ if(night.length)facts.push(`Active between midnight and 05:00 on ${night.length} of ${WK.length} days.`);
+ if(AT){const ps=WK.filter(past),ans=WK.map(d=>EV[d.date]).filter(e=>e&&e.offer);
+  facts.push(`Past your ${esc(AT)} limit on ${ps.length} of ${WK.length} days.`);
+  if(ans.length)facts.push(`When Mirror showed you the time: carried on ${ans.filter(e=>e.answer==='carried_on').length}, stopped ${ans.filter(e=>e.answer==='stopped').length}, no message after it ${ans.filter(e=>e.answer==='left').length}.`)}
+ $('timeFacts').innerHTML=facts.map(f=>`<li>${f}</li>`).join('');
+ $('timetab').innerHTML='<tr><th>Day</th><th class="n">Active</th><th class="n">First</th><th class="n">Last</th>'+(AT?'<th>At your limit</th>':'')+'</tr>'+WK.slice().reverse().map(d=>{const e=EV[d.date];return `<tr><td>${fmt(d.date)}</td><td class="n">${hm(d.active_minutes)}</td><td class="n">${esc(d.first)}</td><td class="n">${esc(d.last)}</td>`+(AT?`<td>${e&&e.offer?`${esc(e.offer)}, ${SAY[e.answer]||'-'}${e.stopped_at?`, stopped at ${esc(e.stopped_at)}`:''}`:(past(d)?'past it':'-')}</td>`:'')+'</tr>'}).join('');
+ $('timeNote').textContent=AT?'An evening runs until 05:00, so a message at 00:30 counts for the evening before. Mirror only notes what you did; it never stops you.':'No evening limit set. To set one: python3 mirror.py limit set 19:00 (or /mirror:limit in Claude Code). Off by default.'}
+else{$('timeCard').hidden=true}}
 // ---------- details ----------
 $('covtab').innerHTML='<tr><th>Tool</th><th>From</th><th>To</th><th class="n">Days</th><th class="n">Messages</th></tr>'+D.coverage.map(c=>`<tr><td>${esc(c.tool)}</td><td>${c.first}</td><td>${c.last}</td><td class="n">${c.days}</td><td class="n">${c.messages}</td></tr>${c.note?`<tr><td colspan="5" class="note" style="padding-top:0">${esc(c.note)}</td></tr>`:''}`).join('');
 $('notread').innerHTML='<b>Not in these numbers:</b> '+esc(D.not_read.join(' '));
