@@ -36,6 +36,12 @@ INDEXES = {
         "ask": "What else changed around the day I marked?",
         "practice": "Mark the day you make a change, not weeks later, and keep the words short enough to recognise.",
     },
+    "drift": {
+        "title": "Session drift (how your messages change over a stretch and by hour)",
+        "measures": "A stretch is your messages in one session with no gap over 30 minutes. For each part of a stretch (the first 30 minutes, 30 to 60, 60 to 120, after 120) and for each hour of the day: the share of your messages that ask a question or push back, the middle (median) length of your messages in characters, and the share of approvals after file changes that came within 15 seconds. Counts are added up first, then the share is worked out. A part with fewer than 5 messages (or 5 timed approvals) is hidden.",
+        "cannot": "Fewer questions late in a stretch can mean the task got clear, not that you were tired. Shorter messages can mean you were in the flow, or that the AI needed less from you. Long stretches are rarer, so their parts rest on fewer messages. It shows how your messages changed, not why, and not whether the change was good.",
+        "ask": "In my longest stretch, what changed in how I wrote to the AI, and did I mean that change?",
+    },
 }
 
 DISCLAIMER = (

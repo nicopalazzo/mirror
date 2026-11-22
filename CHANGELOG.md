@@ -12,6 +12,20 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 - Markers: `mirror.py mark "<your words>"` (today, or `--day YYYY-MM-DD`), `mark list`, `mark remove N`, stored in `~/.mirror/marks.jsonl`. The report shows the four numbers in the 4 weeks before each marker next to the 4 weeks from it, with your usual weekly range, and the line "Before and after is not cause and effect: many things change at once." No verdict. Markers are never in the share card. `explain marks` gives its "cannot tell you".
 - `mirror.py ledger off|on|status|forget`: off stops writing and reading `days.jsonl` (reports fall back to the days the logs still hold) and keeps the file; the setting is `"ledger": "off"` in `config.json`. `ledger forget` deletes `days.jsonl` only; `forget` still deletes everything.
 - No consent version bump: Mirror reads nothing new, and both files sit in the folder the first-run notice already names. See `THREAT-MODEL.md`.
+- Guess first, every week: the first `report` of a new calendar week, run in a terminal, asks one question before the page is built: "What share of your messages last week were a question or pushback?" The report then opens with your guess next to what Mirror counted for last week (Monday to Sunday), as a gap in points, with one question to ask yourself. Enter skips, silently, and the week is not asked again. Never on the same open as the first-run quiz, and only when last week has at least 10 messages. Not asked from `/mirror:report` or any other run without a terminal.
+- `~/.mirror/guess.json` keeps one entry per week: the guess and the count (two numbers), or the week alone when skipped. A "My weekly guesses" table in the report lists past weeks with their gap. No streaks, scores, badges or "right/wrong". `mirror.py guess off` stops the question, `guess on` brings it back, `guess status` shows the setting; `forget` deletes the file.
+- The question is asked in the terminal, not the page, because the page is a static file that cannot save anything to `~/.mirror` without network code.
+- Session drift: how your messages change over a working stretch. A stretch is your messages in one session with no gap over 30 minutes. For the first 30 minutes, 30 to 60, 60 to 120 and after 120, and for each hour of the day, Mirror shows how many messages asked a question or pushed back, the median message length in characters, and quick approvals after file changes. Counts are added up first, then each share is worked out; a part with fewer than 5 messages is hidden. It appears as a section in `week` (this week's days) and as a fold-out table in the report (everything loaded), with a switch between minutes into a stretch and hour of day. `mirror.py explain drift` says what it cannot tell you: fewer questions late can mean the task got clear. No score, no limit, no advice. Message length was already kept; this is the first number that prints it. Tested on synthetic logs only.
+
+## [0.5.0] - 2026-11-22
+
+Command-line tool and both plugins (Claude Code and Codex) at 0.5.0.
+
+### Added
+
+- Time with AI: the report has a "Time with AI" card for the last 7 days (active time, first and last activity per day, days with activity between midnight and 05:00). `week` adds first and last columns and the same facts. Built from data Mirror already had; covers Claude Code, Codex and Cursor.
+- Evening limit: `mirror.py limit set 19:00` (or `/mirror:limit 19:00`, `$mirror:limit` in Codex) sets a time to stop working with AI. Off by default. The first message after that time is held once with "It's 19:12. You set 19:00 as the time to stop working with AI." Enter sends it; `/mirror:stop` records that you stopped. An evening runs until 05:00. Mirror notes one word per evening (carried on, stopped, no message after it) in `~/.mirror/limit.json`, and the report, `day` and `week` show it back. It never stops you. `/mirror:off` turns it off with the nudge and the welcome line.
+- Not yet tested in a live Claude Code or Codex session.
 
 ## [0.4.1] - 2026-10-24
 

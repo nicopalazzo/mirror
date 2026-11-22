@@ -40,7 +40,7 @@ Nothing leaves your computer. Mirror has no network code. The only link out is a
 1. Get the folder onto your computer (download the zip from GitHub and unzip it, or `git clone`).
 2. **Mac:** double-click **`Mirror.command`**. **Windows:** double-click **`Mirror.bat`**.
 3. A small window opens. The first time, it lists what Mirror will read and asks `y/N`. It then shows how today went, asks whether that matched your day, and opens the report in your browser.
-4. **To open the report again later,** double-click **`Mirror Report.command`** (Mac) or **`Mirror Report.bat`** (Windows). It rebuilds the report and opens it without asking anything. Reports are also kept in a normal folder called **`Mirror`** in your home folder, so you can find them in Finder or Explorer.
+4. **To open the report again later,** double-click **`Mirror Report.command`** (Mac) or **`Mirror Report.bat`** (Windows). It rebuilds the report and opens it. Once a week it first asks for your guess about last week (Enter skips). Reports are also kept in a normal folder called **`Mirror`** in your home folder, so you can find them in Finder or Explorer.
 
 The files are not signed, so your computer will warn you the first time:
 - **Mac:** "cannot be opened because it is from an unidentified developer". Right-click the file, choose **Open**, then **Open** again. If that option is missing: System Settings, Privacy & Security, scroll down, **Open Anyway**. A zip download can also lose the file's "runnable" flag; if double-clicking does nothing, use the terminal method below or `git clone`.
@@ -65,9 +65,12 @@ You need Python 3.9+ (check with `python3 --version`, or `py --version` on Windo
 | Record whether a day's numbers matched (used by the skill) | `python3 mirror.py feedback --match partly` | `py mirror.py feedback --match partly` |
 | Read from a non-default folder | `python3 mirror.py day --cursor-dir /path/to/.cursor` (also `--claude-dir`, `--codex-dir`) | same with `py` |
 | Mark a change you made, to see before and after | `python3 mirror.py mark "started using a new tool"` (also `mark list`, `mark remove 2`, `--day YYYY-MM-DD`) | same with `py` |
+| Turn the weekly guess off or on | `python3 mirror.py guess off` | `py mirror.py guess off` |
 | Delete everything Mirror stored | `python3 mirror.py forget` | `py mirror.py forget` |
 
 If `py` is not found on Windows, try `python`. Use `--yes` after the command to accept the first-run notice without being asked.
+
+**Guess first, every week.** The first `report` of a new week asks one question in the terminal before it builds the page: "What share of your messages last week were a question or pushback?" Type a number from 0 to 100, or press Enter to skip. The report then shows your guess next to what Mirror counted, as a gap, with one question to ask yourself. Mirror keeps the two numbers in `~/.mirror/guess.json` and lists past weeks in the report. It never scores the guess. It is not asked on the same open as the first-run quiz, or when the report is built without a terminal (for example from `/mirror:report`).
 
 ## Nudges inside Claude Code (plugin)
 
@@ -105,6 +108,12 @@ If you already work in Claude Code or Codex, install Mirror as a skill and just 
 | Windows folder | `%USERPROFILE%\.claude\skills\mirror` | `%USERPROFILE%\.codex\skills\mirror` |
 
 Restart the tool after installing. The skill asks your permission first and tells you that what Mirror prints will appear in the chat, so your AI provider sees the numbers (never your messages). If you would rather keep everything local, run it in a terminal as above.
+
+## Time with AI and an evening limit
+
+The report shows how long and how late you worked with AI over the last 7 days: active time, first and last activity, and nights with activity between midnight and 05:00. `week` shows the same facts.
+
+Optional: set a time to stop, with `python3 mirror.py limit set 19:00`, or `/mirror:limit 19:00` in Claude Code (`$mirror:limit` in Codex). The first message you send after that time is held once, with the time. Enter sends it, and `/mirror:stop` notes that you stopped. Mirror never stops you: it shows you, in the report, how many evenings you went past your limit and what you did each time. `python3 mirror.py limit off` turns it off.
 
 ## The four numbers
 
@@ -145,4 +154,4 @@ The tests use synthetic logs only (`tests/make_fixtures.py`). There are no real 
 
 ## Status
 
-Version 0.3.1, exploratory (see the [changelog](CHANGELOG.md)). Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.
+Version 0.5.0, exploratory (see the [changelog](CHANGELOG.md)). Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.

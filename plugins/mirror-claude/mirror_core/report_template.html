@@ -62,12 +62,15 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 .qz .acts .go:disabled{opacity:.45;cursor:default}
 .qz .acts .lnk{border:0;background:none;text-decoration:underline;min-height:44px;font-size:15px;color:var(--ink2)}
 .qz .acts button{min-height:52px;font-size:17px}
+.gs{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0 4px}.gs .val{font-size:34px;font-weight:700;line-height:1.05;letter-spacing:-.02em}.gs .vs{font-size:14px;color:var(--ink2)}
+.gline{margin:10px 0 0}.gline svg{max-width:520px}
 @media (min-width:600px){.qz .card{padding:28px}.qz .acts{flex-direction:row-reverse}.qz .acts button{width:auto;padding:8px 24px}.qz .acts .go{flex:1}}
 </style></head><body><div class="wrap" id="wrap">
 <div class="top"><div><h1>Mirror</h1><p class="sub" id="range"></p></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="badge" id="cov"></span><button id="theme" type="button">Theme</button></div></div>
 <p class="note" id="disc" style="margin:0 0 12px"></p>
 <div id="quiz" hidden></div><div id="reveal" hidden></div>
 <div id="body">
+<div id="guess" hidden></div>
 
 <div class="card"><p class="eyebrow">What changed</p><div class="sigs" id="signals"></div></div>
 <div class="grid tiles" id="tiles"></div>
@@ -77,6 +80,8 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 
 <div class="card" id="baBox" style="margin-top:14px" hidden><h2>Before and after a change you named</h2><p class="sub">Your markers, from <code>mirror.py mark</code>: the 4 weeks before each one (Before) next to the 4 weeks from that day on (After), with your usual range for one week.</p><div id="ba"></div>
 <p class="note"><b>Before and after is not cause and effect: many things change at once.</b> <span id="baCannot"></span></p></div>
+<div class="card" style="margin-top:14px" id="timeCard"><div class="hd"><div><h2>Time with AI</h2><p class="sub" id="timeSub"></p></div></div>
+<ul class="note" id="timeFacts" style="margin:4px 0 10px;padding-left:18px"></ul><div class="tw"><table id="timetab"></table></div><p class="note" id="timeNote"></p></div>
 
 <details id="more"><summary>More charts: mix, hours, scatter, every day</summary><div class="grid two" style="margin-top:8px">
 <div class="card"><div class="hd"><div><h2>What I said, as a share</h2><p class="sub">Weekly mix of message types, as shares so busy weeks do not dominate. Labels come from simple rules and are sometimes wrong.</p></div><button class="tbl" data-for="mix" type="button" aria-pressed="false">Table</button></div><div class="legend" id="mixLeg"></div><div class="chart" id="mix"></div></div>
@@ -84,6 +89,9 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 <div class="card"><div class="hd"><div><h2>More handed over, less pushback?</h2><p class="sub">One dot per day with enough messages. Orange: the last 7 days.</p></div><button class="tbl" data-for="sc" type="button" aria-pressed="false">Table</button></div><div class="chart" id="sc"></div><p class="note" id="scNote"></p></div>
 <div class="card"><div class="hd"><div><h2>Every day</h2><p class="sub" id="calSub">One square per day, last 27 weeks.</p></div><button class="tbl" data-for="cal" type="button" aria-pressed="false">Table</button></div><div class="ctl" id="calTabs" role="group" aria-label="Calendar metric"></div><div class="chart" id="cal"></div></div>
 </div></details>
+
+<details id="driftBox"><summary>How a long stretch changes your messages</summary><div class="card" style="margin-top:8px"><p class="sub" id="driftSub" style="margin-top:0"></p>
+<div class="ctl" id="driftTabs" role="group" aria-label="Group by"></div><p id="driftLine" style="margin:4px 0 8px"></p><div class="tw"><table id="drifttab"></table></div><p class="note" id="driftNote"></p></div></details>
 
 <details><summary>Details: what is covered, tokens, every day</summary>
 <div class="card" style="margin-top:8px"><p class="note warn" style="margin-top:0"><b>Read this first.</b> Mirror can only count what it can read, so this shows what is in these numbers and what is not.</p><div class="tw" style="margin-top:8px"><table id="covtab"></table></div><p class="note warn" id="notread"></p><p class="note" id="ledgerNote" hidden></p>
@@ -94,6 +102,8 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 <details id="shareBox"><summary>Numbers to share, if you choose</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">What <code>share-card</code> prints: numbers only, never your messages. Mirror sends nothing; copying is your decision.</p>
 <p><label style="display:flex;align-items:center;gap:10px;min-height:44px"><input type="checkbox" id="incnote" style="width:22px;height:22px;margin:0"> Include my notes</label></p><textarea id="card" readonly rows="10"></textarea>
 <p><button id="copy" type="button">Copy</button> <span id="copied" class="note"></span></p></div></details>
+
+<details id="guessHist" hidden><summary>My weekly guesses</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">Each week you guessed, next to what Mirror counted: the share of your messages that were a question or pushback. Kept on this computer. A gap is a question, not a mark.</p><div class="tw"><table id="gtab"></table></div></div></details>
 
 <details><summary>My notes on how well this matched</summary><div class="card" style="margin-top:8px"><p class="note" style="margin-top:0">Your answers to "Does this match how your day felt?", kept on this computer.</p><div class="tw"><table id="fb"></table></div></div></details>
 </div>
@@ -232,6 +242,18 @@ CH.sc={svg(cw){if(PTS.length<3)return'<p class="note">Needs a few more days with
  return s+'</svg><div class="legend"><span><i style="background:var(--s1)"></i>Earlier days</span><span><i style="background:var(--s2)"></i>Last 7 days</span><span>Up = more pushback</span></div>'},
  table(){return tbl(['Day','Actions per message','Pushback %'],PTS.slice(-30).reverse().map(p=>[fmt(p.date),f1(p.x),f1(p.y)]))+'<p class="note">Last 30 days shown.</p>'}};
 (function(){if(PTS.length<5){$('scNote').textContent='';return}const xs=PTS.map(p=>p.x).sort((a,b)=>a-b),ys=PTS.map(p=>p.y).sort((a,b)=>a-b),mx=xs[xs.length>>1],my=ys[ys.length>>1];const hi=PTS.filter(p=>p.x>mx),lo=hi.filter(p=>p.y<my).length;$('scNote').textContent=`On ${lo} of ${hi.length} days when the AI did more per message than usual, pushback was below your median (${f1(my)}%). A pattern, not a cause.`})();
+// ---------- session drift (pooled counts by minutes into a stretch and by hour; small cells hidden) ----------
+(function(){const R=D.drift,box=$('driftBox');if(!R||!R.stretches){box.hidden=true;return}box.open=WIDE;let DG='buckets';
+ const no='–',inN=p=>p===null?'n/a':p<=0?'none':p>=25?Math.round(p/10)+' in 10':'1 in '+Math.round(100/p);
+ $('driftSub').textContent=`A stretch is your messages in one session with no gap over ${R.gap_minutes} minutes. ${R.stretches} stretch${R.stretches===1?'':'es'} in this report; the longest lasted about ${R.longest_minutes} minutes. Counts are added up across days first, then each share is worked out.`;
+ const sh=R.buckets.filter(c=>c.asked_pct!==null);
+ $('driftLine').textContent=sh.length<2?'Not enough messages yet in more than one part of a stretch to compare.':`In the ${sh[0].label} part of a stretch, ${inN(sh[0].asked_pct)} messages asked a question or pushed back; in the ${sh[sh.length-1].label} part, ${inN(sh[sh.length-1].asked_pct)}. Median length: ${Math.round(sh[0].median_chars)} then ${Math.round(sh[sh.length-1].median_chars)} characters.`;
+ $('driftNote').innerHTML=`${no} means fewer than ${R.min_cell} messages (or ${R.min_cell} timed approvals), too few to show. <b>Cannot tell you:</b> ${esc(D.indexes.drift.cannot)} Ask yourself: ${esc(D.indexes.drift.ask)}`;
+ function draw(){const rows=R[DG].filter(c=>c.messages);
+  $('driftTabs').innerHTML=[['buckets','Minutes into a stretch'],['hours','Hour of day']].map(([k,l])=>`<button type="button" aria-pressed="${k===DG}" data-k="${k}">${l}</button>`).join('');
+  $('driftTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{DG=b.dataset.k;draw()});
+  $('drifttab').innerHTML=`<tr><th>${DG==='buckets'?'Minutes in':'Hour'}</th><th class="n">Messages</th><th class="n">Asked or pushed back</th><th class="n">Median chars</th><th class="n">Quick approvals</th></tr>`+rows.map(c=>`<tr><td style="white-space:nowrap">${esc(c.label.replace(' min',''))}</td><td class="n">${c.messages}</td><td class="n">${c.asked_pct===null?no:f1(c.asked_pct)+'%'}</td><td class="n">${c.median_chars===null?no:Math.round(c.median_chars)}</td><td class="n">${c.quick_pct===null?no:c.quick+'/'+c.approvals}</td></tr>`).join('')}
+ draw()})();
 // ---------- calendar ----------
 let CM='active';
 const CALM={active:{label:'Active minutes',f:d=>d.active_minutes,u:' min'},msgs:{label:'Messages',f:d=>d.prompts,u:' messages'},push:{label:'Pushback',f:d=>d.prompts>=MINMSG?d.idx.pushback_pct:null,u:'% pushback'},apm:{label:'Actions per message',f:d=>d.prompts>=MINMSG?d.idx.actions_per_prompt:null,u:' actions per message'}};
@@ -244,6 +266,23 @@ CH.cal={svg(cw){const M=CALM[CM],map={};ALL.forEach(d=>map[d.date]=M.f(d));const
  table(){const M=CALM[CM];return tbl(['Day',M.label],ALL.slice(-30).reverse().map(d=>{const v=M.f(d);return[fmt(d.date),v===null?'n/a':f1(v)]}))+'<p class="note">Last 30 active days shown.</p>'}};
 function calTabs(){$('calTabs').innerHTML=Object.entries(CALM).map(([k,x])=>`<button type="button" aria-pressed="${k===CM}" data-k="${k}">${x.label}</button>`).join('');$('calTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{CM=b.dataset.k;calTabs();paint('cal')})}
 calTabs();
+// ---------- time with AI (facts only: when, how long, what you did at your limit) ----------
+{const NIGHT='05:00',L=D.limit||{},AT=L.enabled?L.at:null,EV=L.evenings||{};
+const WK=ALL.filter(d=>(LAST-t(d.date))/DAY<7&&d.last);
+const hm=m=>{m=Math.round(m||0);const h=Math.floor(m/60);return h?`${h} h ${String(m%60).padStart(2,'0')} min`:`${m} min`};
+const past=d=>!!AT&&(d.last>=AT||(d.first||'99')<NIGHT);
+const SAY={carried_on:'carried on',stopped:'stopped',left:'no message after it'};
+$('timeSub').textContent='The last 7 days: how long and how late. Gaps over 5 minutes are not counted as active time.';
+if(WK.length){const tot=sum(WK,d=>d.active_minutes),lt=WK.reduce((a,d)=>d.last>a.last?d:a,WK[0]),night=WK.filter(d=>d.first<NIGHT);
+ const facts=[`${hm(tot)} active over ${WK.length} days.`,`Latest activity: ${esc(lt.last)} on ${fmt(lt.date)}.`];
+ if(night.length)facts.push(`Active between midnight and 05:00 on ${night.length} of ${WK.length} days.`);
+ if(AT){const ps=WK.filter(past),ans=WK.map(d=>EV[d.date]).filter(e=>e&&e.offer);
+  facts.push(`Past your ${esc(AT)} limit on ${ps.length} of ${WK.length} days.`);
+  if(ans.length)facts.push(`When Mirror showed you the time: carried on ${ans.filter(e=>e.answer==='carried_on').length}, stopped ${ans.filter(e=>e.answer==='stopped').length}, no message after it ${ans.filter(e=>e.answer==='left').length}.`)}
+ $('timeFacts').innerHTML=facts.map(f=>`<li>${f}</li>`).join('');
+ $('timetab').innerHTML='<tr><th>Day</th><th class="n">Active</th><th class="n">First</th><th class="n">Last</th>'+(AT?'<th>At your limit</th>':'')+'</tr>'+WK.slice().reverse().map(d=>{const e=EV[d.date];return `<tr><td>${fmt(d.date)}</td><td class="n">${hm(d.active_minutes)}</td><td class="n">${esc(d.first)}</td><td class="n">${esc(d.last)}</td>`+(AT?`<td>${e&&e.offer?`${esc(e.offer)}, ${SAY[e.answer]||'-'}${e.stopped_at?`, stopped at ${esc(e.stopped_at)}`:''}`:(past(d)?'past it':'-')}</td>`:'')+'</tr>'}).join('');
+ $('timeNote').textContent=AT?'An evening runs until 05:00, so a message at 00:30 counts for the evening before. Mirror only notes what you did; it never stops you.':'No evening limit set. To set one: python3 mirror.py limit set 19:00 (or /mirror:limit in Claude Code). Off by default.'}
+else{$('timeCard').hidden=true}}
 // ---------- details ----------
 $('covtab').innerHTML='<tr><th>Tool</th><th>From</th><th>To</th><th class="n">Days</th><th class="n">Messages</th></tr>'+D.coverage.map(c=>`<tr><td>${esc(c.tool)}</td><td>${c.first}</td><td>${c.last}</td><td class="n">${c.days}</td><td class="n">${c.messages}</td></tr>${c.note?`<tr><td colspan="5" class="note" style="padding-top:0">${esc(c.note)}</td></tr>`:''}`).join('');
 $('notread').innerHTML='<b>Not in these numbers:</b> '+esc(D.not_read.join(' '));
@@ -267,9 +306,26 @@ $('fb').innerHTML=D.feedback.length?'<tr><th>Day</th><th>Did it match?</th><th>Y
   return `<h3 style="font-size:16px;margin:16px 0 4px">${esc(fmt(k.day))}: ${esc(k.note)}</h3>`+tbl(['','Before','After','Usual week'],rows)+`<p class="note" style="margin-top:4px">${esc(span(b,'Before'))}. ${esc(span(a,'After'))}.</p>`}).join('')})();
 (function(){const L=D.ledger||{};if(!L.days)return;const el=$('ledgerNote');el.hidden=false;
  el.textContent=`${L.days} day${L.days===1?'':'s'} here, from ${fmt(L.first)}, come from Mirror's own numbers-only record (days.jsonl in its settings folder), kept after the tools deleted or stopped reading those logs.`+(L.other_rules?` ${L.other_rules} of them were counted with older labelling rules or a different quick-approval line, so they may not compare exactly with the rest.`:'')})();
+// ---------- weekly guess (asked in the terminal before this page was built; kept in ~/.mirror) ----------
+guessInit(fmt);
 // ---------- paint ----------
 const paintAll=()=>Object.keys(CH).forEach(paint);paintAll();$('more').addEventListener('toggle',()=>{if($('more').open)paintAll()});
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(paintAll,150)});
+}
+function guessInit(fmt){
+ const G=D.guess||{now:null,history:[]},pc=v=>(Math.round(v*10)/10)+'%';
+ const isoMon=k=>{const [y,w]=k.split('-W').map(Number),j=new Date(Date.UTC(y,0,4)),d=(j.getUTCDay()+6)%7;return new Date(Date.UTC(y,0,4-d+(w-1)*7,12)).getTime()};
+ const gap=(g,c)=>{const d=Math.round(Math.abs(g-c)*10)/10;return d<0.5?'the same as the count':d+' point'+(d===1?'':'s')+(g>c?' above':' below')+' the count'};
+ if(G.now){const n=G.now,g=n.guess,c=n.share,lo=Math.min(g,c),hi=Math.max(g,c),X=v=>8+v*2.84;
+  const line=`<svg viewBox="0 0 300 46" role="img" aria-label="On a scale from 0 to 100 percent: your guess ${pc(g)}, Mirror counted ${pc(c)}."><line x1="8" x2="292" y1="18" y2="18" stroke="var(--grid)" stroke-width="6" stroke-linecap="round"/><line x1="${X(lo)}" x2="${X(hi)}" y1="18" y2="18" stroke="var(--band)" stroke-width="6"/><circle cx="${X(g)}" cy="18" r="7" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5"/><circle cx="${X(c)}" cy="18" r="6" fill="var(--s1)"/><text x="8" y="42">0%</text><text x="150" y="42" text-anchor="middle">50%</text><text x="292" y="42" text-anchor="end">100%</text></svg>`;
+  const box=$('guess');box.hidden=false;box.className='card';box.style.marginBottom='14px';
+  box.innerHTML=`<p class="eyebrow">Guess first</p><h2>Your guess next to last week's count</h2><p class="sub">${esc(fmt(n.start))} to ${esc(fmt(n.end))} · ${n.messages.toLocaleString('en-GB')} messages · the share that were a question or pushback</p>
+  <div class="gs"><div><div class="vs">You guessed</div><div class="val">${pc(g)}</div></div><div><div class="vs">Mirror counted</div><div class="val" style="color:var(--s1)">${pc(c)}</div></div></div>
+  <div class="gline">${line}<p class="legend" style="margin:4px 0 0"><span><i style="background:var(--surface);border:2px solid var(--ink);border-radius:50%"></i>Your guess</span><span><i style="background:var(--s1);border-radius:50%"></i>Mirror counted</span></p></div>
+  <p class="st" style="margin:10px 0 0;font-weight:600">Your guess was ${esc(gap(g,c))}.</p><p class="note" style="color:var(--ink2)">Ask yourself: ${esc(n.ask)}</p>
+  <p class="note">Labels come from simple rules and sometimes miss, so a gap can be Mirror's mistake as much as yours.</p>`}
+ if(G.history.length){$('guessHist').hidden=false;
+  $('gtab').innerHTML='<tr><th>Week of</th><th class="n">You guessed</th><th class="n">Mirror counted</th><th>Gap</th></tr>'+G.history.slice().reverse().map(h=>`<tr><td>${esc(fmt(isoMon(h.week)))}</td><td class="n">${pc(h.guess)}</td><td class="n">${pc(h.count)}</td><td>${esc(gap(h.guess,h.count).replace(' the count',''))}</td></tr>`).join('')}
 }
 // ---------- one-time quiz (first report only; answers live in this page and nowhere else) ----------
 function quizInit(){

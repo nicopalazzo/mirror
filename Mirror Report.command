@@ -1,5 +1,5 @@
 #!/bin/bash
-# Opens your latest Mirror report in the browser. No questions after the first run. Nothing is sent anywhere.
+# Opens your latest Mirror report in the browser. After the first run, one optional question a week (your guess; Enter skips). Nothing is sent anywhere.
 cd "$(dirname "$0")" || exit 1
 TEST=0
 if [ "$1" = "--test" ]; then TEST=1; fi
