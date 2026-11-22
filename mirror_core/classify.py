@@ -7,6 +7,9 @@ every kind is a proxy, and the report says so.
 from __future__ import annotations
 import re
 
+# Bump when a labelling rule below changes, so days labelled under old rules can be told apart in the ledger.
+RULES_VERSION = 1
+
 KINDS = ["directive", "question", "approval", "challenge", "context", "pasted", "meta"]
 
 _META = re.compile(r"^\s*(<command-|<local-command|<task-|\[Request interrupted|/[a-z][\w-]*(\s|$))", re.I)

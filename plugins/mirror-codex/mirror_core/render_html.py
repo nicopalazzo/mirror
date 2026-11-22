@@ -11,11 +11,12 @@ TOOL_NOTES = {
 }
 NOT_READ = [
     "Web chats such as claude.ai and chatgpt.com, which leave no log on this computer.",
-    "Anything older than the oldest session file each tool still keeps (Claude Code deletes sessions after about 30 days by default).",
+    "Anything older than the oldest session file each tool still keeps (Claude Code deletes sessions after about 30 days by default), unless Mirror counted that day on an earlier run and kept its numbers.",
 ]
 
 
-def build(all_days, feedback, tokens, out_path: Path, coverage=None, quiz=False, drift=None, limit=None, guess=None):
+def build(all_days, feedback, tokens, out_path: Path, coverage=None, quiz=False, drift=None, limit=None, guess=None,
+          marks=None, ledger=None):
     days = []
     for d, s in all_days.items():
         row = {k: v for k, v in s.items() if k != "_counts"}
@@ -26,7 +27,8 @@ def build(all_days, feedback, tokens, out_path: Path, coverage=None, quiz=False,
             "coverage": [dict(c, note=TOOL_NOTES.get(c["tool"], "")) for c in (coverage or [])], "not_read": NOT_READ, "quiz": bool(quiz),
             "drift": drift,
             "limit": limit or {"enabled": False, "at": None, "evenings": {}},
-            "guess": guess or {"now": None, "history": []}}
+            "guess": guess or {"now": None, "history": []},
+            "marks": list(marks or []), "ledger": dict(ledger or {})}
     tpl = (Path(__file__).parent / "report_template.html").read_text(encoding="utf-8")
     html = tpl.replace("/*__DATA__*/null", json.dumps(data).replace("</", "<\\/"))
     out_path.parent.mkdir(parents=True, exist_ok=True)

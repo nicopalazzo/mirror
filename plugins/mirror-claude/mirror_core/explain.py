@@ -29,6 +29,13 @@ INDEXES = {
         "ask": "Which switch today pulled me away from what I meant to finish?",
         "practice": "Write down the one thing you are finishing before you open a second session.",
     },
+    "marks": {
+        "title": "Before and after a change you named",
+        "measures": "Your four numbers in the 4 weeks before a day you marked with `mirror.py mark`, next to the 4 weeks from that day on, with your usual weekly range beside them.",
+        "cannot": "It cannot tell you that your change caused the difference. Many things change at once: the work, the project, the season, the AI tools themselves. Four weeks can also be too short to tell a real shift from an ordinary swing.",
+        "ask": "What else changed around the day I marked?",
+        "practice": "Mark the day you make a change, not weeks later, and keep the words short enough to recognise.",
+    },
     "drift": {
         "title": "Session drift (how your messages change over a stretch and by hour)",
         "measures": "A stretch is your messages in one session with no gap over 30 minutes. For each part of a stretch (the first 30 minutes, 30 to 60, 60 to 120, after 120) and for each hour of the day: the share of your messages that ask a question or push back, the middle (median) length of your messages in characters, and the share of approvals after file changes that came within 15 seconds. Counts are added up first, then the share is worked out. A part with fewer than 5 messages (or 5 timed approvals) is hidden.",

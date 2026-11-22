@@ -646,6 +646,155 @@ class ReportsFolder(Base):
         self.assertFalse((self.root / "home").exists())
 
 
+class Ledger(Base):
+    """The numbers-only record of each day in ~/.mirror/days.jsonl."""
+
+    def _rows(self):
+        p = self.root / "home" / "days.jsonl"
+        return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines()]
+
+    def test_ledger_holds_numbers_only(self):
+        from mirror_core import ledger
+        from mirror_core.classify import RULES_VERSION
+        _, out = run_cli(["day", "--yes", "--no-feedback"], self.env)
+        self.assertIn("numbers-only record", out)  # said once, when the file is created
+        _, out2 = run_cli(["day", "--yes", "--no-feedback"], self.env)
+        self.assertNotIn("numbers-only record", out2)
+        raw = (self.root / "home" / "days.jsonl").read_text(encoding="utf-8")
+        for phrase in ("login page", "cookie and a token", "renames files", "bouton", "/home/demo", "demo", "sess-1", "rollout", "claude-test", "codex-test"):
+            self.assertNotIn(phrase, raw)
+        rows = self._rows()
+        self.assertTrue(rows)
+        for r in rows:
+            self.assertEqual(set(r), {"date", "rules", "quick_seconds", "stats"})
+            self.assertEqual(r["rules"], RULES_VERSION)
+            self.assertTrue(set(r["stats"]) <= set(ledger.FIELDS))
+
+    def test_ledger_keeps_days_the_logs_lost(self):
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        today = self._rows()[-1]
+        old = dict(today, date="2026-01-05", rules=0)
+        p = self.root / "home" / "days.jsonl"
+        p.write_text(json.dumps(old) + "\n" + p.read_text(encoding="utf-8"), encoding="utf-8")
+        for f in (self.claude / "projects").rglob("*.jsonl"):
+            f.unlink()  # Claude Code's cleanup removes today's session
+        run_cli(["report", "--yes"], self.env)
+        rows = {r["date"]: r for r in self._rows()}
+        self.assertIn("2026-01-05", rows)
+        self.assertEqual(rows[today["date"]]["stats"]["prompts"], today["stats"]["prompts"])  # the fuller day is kept
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        data = json.loads(html.split("const D=", 1)[1].split(";\n", 1)[0])
+        self.assertIn("2026-01-05", [d["date"] for d in data["days"]])
+        self.assertEqual(data["ledger"]["days"], 2)
+        self.assertEqual(data["ledger"]["other_rules"], 1)  # the old day was counted with older rules
+
+    def test_days_still_in_the_logs_are_recomputed(self):
+        from datetime import date
+        from mirror_core import ledger
+        from mirror_core.indexes import day_stats
+        from mirror_core.classify import RULES_VERSION
+        logs = by_day(*read_claude(self.claude, 60)[:2])
+        d = next(iter(logs))
+        small = day_stats([], [])
+        rows = {d: {"rules": 0, "quick_seconds": 15, "stats": small},
+                date(2026, 1, 5): {"rules": RULES_VERSION, "quick_seconds": 15, "stats": logs[d]}}
+        days, out, info = ledger.merge(logs, 15, rows)
+        self.assertIs(days[d], logs[d])
+        self.assertEqual(out[d]["rules"], RULES_VERSION)
+        self.assertIn(date(2026, 1, 5), days)
+        self.assertEqual((info["days"], info["other_rules"]), (1, 0))
+
+    def test_broken_ledger_lines_are_skipped_and_hours_come_back_as_numbers(self):
+        from mirror_core import ledger
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        p = self.root / "home" / "days.jsonl"
+        p.write_text("not json\n" + json.dumps({"date": "2026-01-01", "stats": "x"}) + "\n" + p.read_text(encoding="utf-8"), encoding="utf-8")
+        with mock.patch.dict(os.environ, self.env):
+            rows = ledger.read()
+        self.assertEqual(len(rows), 1)
+        s = next(iter(rows.values()))["stats"]
+        self.assertTrue(all(isinstance(h, int) for h in s["hours_prompts"]))
+
+    def test_ledger_off_stops_reading_and_writing_and_forget_deletes_only_it(self):
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        p = self.root / "home" / "days.jsonl"
+        p.write_text(p.read_text(encoding="utf-8") + json.dumps(dict(json.loads(p.read_text(encoding="utf-8").splitlines()[0]), date="2026-01-05")) + "\n", encoding="utf-8")
+        before = p.read_text(encoding="utf-8")
+        _, out = run_cli(["ledger", "off"], self.env)
+        self.assertIn("off", out)
+        cfg = json.loads((self.root / "home" / "config.json").read_text(encoding="utf-8"))
+        self.assertEqual(cfg["ledger"], "off")
+        run_cli(["report", "--yes"], self.env)
+        self.assertEqual(p.read_text(encoding="utf-8"), before)  # not written
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        data = json.loads(html.split("const D=", 1)[1].split(";\n", 1)[0])
+        self.assertNotIn("2026-01-05", [d["date"] for d in data["days"]])  # not read: log days only
+        self.assertTrue(data["ledger"]["off"])
+        _, out = run_cli(["ledger", "status"], self.env)
+        self.assertIn("off", out)
+        run_cli(["ledger", "forget"], self.env)
+        self.assertFalse(p.exists())
+        self.assertTrue((self.root / "home" / "config.json").exists())  # only the ledger goes
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        self.assertFalse(p.exists())  # still off
+        run_cli(["ledger", "on"], self.env)
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        self.assertTrue(p.exists())
+
+    def test_forget_deletes_ledger_and_markers(self):
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        run_cli(["mark", "tried a new rule"], self.env)
+        self.assertTrue((self.root / "home" / "days.jsonl").exists())
+        self.assertTrue((self.root / "home" / "marks.jsonl").exists())
+        run_cli(["forget"], self.env)
+        self.assertFalse((self.root / "home").exists())
+
+
+class Markers(Base):
+    LINE = "Before and after is not cause and effect: many things change at once."
+
+    def test_mark_add_list_remove(self):
+        code, out = run_cli(["mark", "started", "using", "Coanda", "--day", "2026-11-02"], self.env)
+        self.assertEqual(code, 0)
+        self.assertIn("2026-11-02", out)
+        run_cli(["mark", "new model", "--day", "2026-10-01"], self.env)
+        _, out = run_cli(["mark", "list"], self.env)
+        self.assertLess(out.index("new model"), out.index("started using Coanda"))  # oldest first
+        code, out = run_cli(["mark", "remove", "1"], self.env)
+        self.assertEqual(code, 0)
+        _, out = run_cli(["mark", "list"], self.env)
+        self.assertNotIn("new model", out)
+        self.assertEqual(run_cli(["mark", "remove", "9"], self.env)[0], 2)
+
+    def test_mark_refuses_empty_long_or_bad_day(self):
+        self.assertEqual(run_cli(["mark", " "], self.env)[0], 2)
+        self.assertEqual(run_cli(["mark", "x" * 200], self.env)[0], 2)
+        self.assertEqual(run_cli(["mark", "ok", "--day", "yesterday"], self.env)[0], 2)
+        self.assertFalse((self.root / "home" / "marks.jsonl").exists())
+
+    def test_markers_never_in_share_card(self):
+        run_cli(["feedback", "--yes", "--match", "yes", "--note", "a note"], self.env)
+        run_cli(["mark", "SECRET MARKER words"], self.env)
+        for argv in (["share-card"], ["share-card", "--include-note"]):
+            _, card = run_cli(argv, self.env)
+            self.assertNotIn("SECRET MARKER", card)
+        tpl = (ROOT / "mirror_core" / "report_template.html").read_text(encoding="utf-8")
+        card_js = tpl.split("function card(){", 1)[1].split("$('card').value", 1)[0]
+        self.assertNotIn("marks", card_js)  # the report's share box builds from your day answers only
+
+    def test_report_shows_before_and_after_with_the_plain_line_and_no_verdict(self):
+        from datetime import date
+        run_cli(["mark", "tried a <b>new</b> tool", "--day", (date.today() - timedelta(days=2)).isoformat()], self.env)
+        run_cli(["report", "--yes"], self.env)
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        self.assertIn(self.LINE, html)
+        self.assertIn("tried a <b>new<\\/b> tool", html)  # carried as data, escaped when shown
+        block = html.split("before and after a marker", 1)[1].split("(function(){const L=D.ledger", 1)[0].lower()
+        for word in ("better", "worse", "improv", "worked", "caused", "success", "s2", "s3"):
+            self.assertNotIn(word, block)
+        self.assertIn("esc(k.note)", block)
+
+
 class Nudge(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
