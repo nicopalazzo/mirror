@@ -82,6 +82,9 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 <div class="card"><div class="hd"><div><h2>Every day</h2><p class="sub" id="calSub">One square per day, last 27 weeks.</p></div><button class="tbl" data-for="cal" type="button" aria-pressed="false">Table</button></div><div class="ctl" id="calTabs" role="group" aria-label="Calendar metric"></div><div class="chart" id="cal"></div></div>
 </div></details>
 
+<details id="driftBox"><summary>How a long stretch changes your messages</summary><div class="card" style="margin-top:8px"><p class="sub" id="driftSub" style="margin-top:0"></p>
+<div class="ctl" id="driftTabs" role="group" aria-label="Group by"></div><p id="driftLine" style="margin:4px 0 8px"></p><div class="tw"><table id="drifttab"></table></div><p class="note" id="driftNote"></p></div></details>
+
 <details><summary>Details: what is covered, tokens, every day</summary>
 <div class="card" style="margin-top:8px"><p class="note warn" style="margin-top:0"><b>Read this first.</b> Mirror can only count what it can read, so this shows what is in these numbers and what is not.</p><div class="tw" style="margin-top:8px"><table id="covtab"></table></div><p class="note warn" id="notread"></p>
 <h3 style="font-size:15px;margin:16px 0 4px">Tokens</h3><div class="tw"><table id="tok"></table></div><p class="note">Counts the tools record themselves. Cached means context the tool re-read, not new writing. Not every tool records tokens.</p>
@@ -229,6 +232,18 @@ CH.sc={svg(cw){if(PTS.length<3)return'<p class="note">Needs a few more days with
  return s+'</svg><div class="legend"><span><i style="background:var(--s1)"></i>Earlier days</span><span><i style="background:var(--s2)"></i>Last 7 days</span><span>Up = more pushback</span></div>'},
  table(){return tbl(['Day','Actions per message','Pushback %'],PTS.slice(-30).reverse().map(p=>[fmt(p.date),f1(p.x),f1(p.y)]))+'<p class="note">Last 30 days shown.</p>'}};
 (function(){if(PTS.length<5){$('scNote').textContent='';return}const xs=PTS.map(p=>p.x).sort((a,b)=>a-b),ys=PTS.map(p=>p.y).sort((a,b)=>a-b),mx=xs[xs.length>>1],my=ys[ys.length>>1];const hi=PTS.filter(p=>p.x>mx),lo=hi.filter(p=>p.y<my).length;$('scNote').textContent=`On ${lo} of ${hi.length} days when the AI did more per message than usual, pushback was below your median (${f1(my)}%). A pattern, not a cause.`})();
+// ---------- session drift (pooled counts by minutes into a stretch and by hour; small cells hidden) ----------
+(function(){const R=D.drift,box=$('driftBox');if(!R||!R.stretches){box.hidden=true;return}box.open=WIDE;let DG='buckets';
+ const no='–',inN=p=>p===null?'n/a':p<=0?'none':p>=25?Math.round(p/10)+' in 10':'1 in '+Math.round(100/p);
+ $('driftSub').textContent=`A stretch is your messages in one session with no gap over ${R.gap_minutes} minutes. ${R.stretches} stretch${R.stretches===1?'':'es'} in this report; the longest lasted about ${R.longest_minutes} minutes. Counts are added up across days first, then each share is worked out.`;
+ const sh=R.buckets.filter(c=>c.asked_pct!==null);
+ $('driftLine').textContent=sh.length<2?'Not enough messages yet in more than one part of a stretch to compare.':`In the ${sh[0].label} part of a stretch, ${inN(sh[0].asked_pct)} messages asked a question or pushed back; in the ${sh[sh.length-1].label} part, ${inN(sh[sh.length-1].asked_pct)}. Median length: ${Math.round(sh[0].median_chars)} then ${Math.round(sh[sh.length-1].median_chars)} characters.`;
+ $('driftNote').innerHTML=`${no} means fewer than ${R.min_cell} messages (or ${R.min_cell} timed approvals), too few to show. <b>Cannot tell you:</b> ${esc(D.indexes.drift.cannot)} Ask yourself: ${esc(D.indexes.drift.ask)}`;
+ function draw(){const rows=R[DG].filter(c=>c.messages);
+  $('driftTabs').innerHTML=[['buckets','Minutes into a stretch'],['hours','Hour of day']].map(([k,l])=>`<button type="button" aria-pressed="${k===DG}" data-k="${k}">${l}</button>`).join('');
+  $('driftTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{DG=b.dataset.k;draw()});
+  $('drifttab').innerHTML=`<tr><th>${DG==='buckets'?'Minutes in':'Hour'}</th><th class="n">Messages</th><th class="n">Asked or pushed back</th><th class="n">Median chars</th><th class="n">Quick approvals</th></tr>`+rows.map(c=>`<tr><td style="white-space:nowrap">${esc(c.label.replace(' min',''))}</td><td class="n">${c.messages}</td><td class="n">${c.asked_pct===null?no:f1(c.asked_pct)+'%'}</td><td class="n">${c.median_chars===null?no:Math.round(c.median_chars)}</td><td class="n">${c.quick_pct===null?no:c.quick+'/'+c.approvals}</td></tr>`).join('')}
+ draw()})();
 // ---------- calendar ----------
 let CM='active';
 const CALM={active:{label:'Active minutes',f:d=>d.active_minutes,u:' min'},msgs:{label:'Messages',f:d=>d.prompts,u:' messages'},push:{label:'Pushback',f:d=>d.prompts>=MINMSG?d.idx.pushback_pct:null,u:'% pushback'},apm:{label:'Actions per message',f:d=>d.prompts>=MINMSG?d.idx.actions_per_prompt:null,u:' actions per message'}};

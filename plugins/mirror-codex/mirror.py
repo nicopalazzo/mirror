@@ -26,6 +26,7 @@ from mirror_core.explain import INDEXES, DISCLAIMER
 from mirror_core.indexes import by_day, QUICK_SECONDS
 from mirror_core.readers import default_dirs, read_claude, read_codex, read_cursor, inventory
 from mirror_core.render_text import day_text, week_text, explain_text
+from mirror_core.drift import drift
 
 
 CONSENT_VERSION = 2  # bumped when Mirror started reading Cursor chats, so everyone is asked again
@@ -165,7 +166,8 @@ def cmd_week(args):
         _quiz_hold()
         return 0
     end = _pick_day(args, all_days)
-    print(week_text(all_days, end))
+    window = {end - timedelta(days=i) for i in range(7)}
+    print(week_text(all_days, end, drift=drift(turns, actions, args.quick_seconds, dates=window)))
     return 0
 
 
@@ -184,7 +186,7 @@ def cmd_report(args):
     coverage = [{"tool": v["tool"], "first": min(v["dates"]).isoformat(), "last": max(v["dates"]).isoformat(),
                  "days": len(v["dates"]), "messages": v["messages"]} for v in cov.values() if v["dates"]]
     quiz = _quiz_due(all_days)
-    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz)
+    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz, drift=drift(turns, actions, args.quick_seconds))
     if quiz:
         store.set_quiz("shown")  # the quiz is in this page only; Mirror keeps no copy of the guesses
     try:
