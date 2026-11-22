@@ -6,6 +6,11 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 
 ## [Unreleased]
 
+### Added
+
+- Reply time against change size: a report card that groups each run of AI file changes (no message from you in between) by lines changed (under 20, 20 to 200, over 200) and shows, per group, the median time the AI kept working, the median time to your next message, and the share of quick agreements. Groups with fewer than 5 runs are not shown. Claude Code and Codex only; Cursor's log has no reply times. `mirror.py explain size` says what it can and cannot tell you. No threshold and no advice.
+- The readers now count the lines in each file change (Claude Code `Write`, `Edit`, `MultiEdit`, `NotebookEdit`; Codex `apply_patch`) and keep only that number; the code is dropped at once, like message text. `THREAT-MODEL.md` updated.
+
 ## [0.4.1] - 2026-10-24
 
 Command-line tool and both plugins (Claude Code and Codex) at 0.4.1.

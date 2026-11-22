@@ -75,6 +75,8 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 <div class="card" style="margin-top:14px"><div class="hd"><div><h2>Week by week</h2><p class="sub" id="heroSub"></p></div><button class="tbl" data-for="hero" type="button" aria-pressed="false">Table</button></div>
 <div class="ctl" id="metricTabs" role="group" aria-label="Metric"></div><div class="chart" id="hero"></div><p class="note" id="heroNote"></p></div>
 
+<div class="card" id="sizeCard" style="margin-top:14px"><h2>Reply time against change size</h2><p class="sub" id="sizeSub"></p><div id="sizeTab"></div><p class="note" id="sizeNote"></p></div>
+
 <details id="more"><summary>More charts: mix, hours, scatter, every day</summary><div class="grid two" style="margin-top:8px">
 <div class="card"><div class="hd"><div><h2>What I said, as a share</h2><p class="sub">Weekly mix of message types, as shares so busy weeks do not dominate. Labels come from simple rules and are sometimes wrong.</p></div><button class="tbl" data-for="mix" type="button" aria-pressed="false">Table</button></div><div class="legend" id="mixLeg"></div><div class="chart" id="mix"></div></div>
 <div class="card"><div class="hd"><div><h2>When I send messages</h2><p class="sub" id="heatSub"></p></div><button class="tbl" data-for="heat" type="button" aria-pressed="false">Table</button></div><div class="ctl" id="heatTabs" role="group" aria-label="Heatmap metric"></div><div class="chart" id="heat"></div><p class="note" id="heatNote"></p></div>
@@ -241,6 +243,13 @@ CH.cal={svg(cw){const M=CALM[CM],map={};ALL.forEach(d=>map[d.date]=M.f(d));const
  table(){const M=CALM[CM];return tbl(['Day',M.label],ALL.slice(-30).reverse().map(d=>{const v=M.f(d);return[fmt(d.date),v===null?'n/a':f1(v)]}))+'<p class="note">Last 30 active days shown.</p>'}};
 function calTabs(){$('calTabs').innerHTML=Object.entries(CALM).map(([k,x])=>`<button type="button" aria-pressed="${k===CM}" data-k="${k}">${x.label}</button>`).join('');$('calTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{CM=b.dataset.k;calTabs();paint('cal')})}
 calTabs();
+// ---------- reply time against change size (Claude Code and Codex; counts only) ----------
+(function(){const Z=D.approval_size,I=D.indexes.size||{},secs=s=>s<90?s+' s':Math.round(s/60)+' min';
+ if(!Z||!Z.runs){$('sizeSub').textContent='No runs of file changes followed by a message of yours yet, in Claude Code or Codex.';$('sizeNote').innerHTML=`<b>Cannot tell you:</b> ${esc(I.cannot||'')}`;return}
+ $('sizeSub').textContent=`${Z.runs} run${Z.runs===1?'':'s'} of file changes over ${Z.days} day${Z.days===1?'':'s'}. A run is what the AI changed with no message from you in between, grouped by lines changed. Times are medians.`;
+ $('sizeTab').innerHTML=tbl(['Lines','Runs','AI working','You replied','Quick ok'],Z.buckets.map(b=>b.shown?[b.label,String(b.runs),secs(b.run_median_s),secs(b.reply_median_s),Math.round(b.quick_pct)+'%']:[b.label,String(b.runs),'-','-','-']));
+ const hid=Z.buckets.some(b=>!b.shown);
+ $('sizeNote').innerHTML=(hid?'A dash: fewer than 5 runs in that group, too few to show. ':'')+`<b>AI working:</b> from its first change to its last action before your message. <b>You replied:</b> time to your next message, of any kind. <b>Quick ok:</b> short agreements within 15 seconds. <b>Cannot tell you:</b> ${esc(I.cannot||'')} <b>Ask yourself:</b> ${esc(I.ask||'')}`})();
 // ---------- details ----------
 $('covtab').innerHTML='<tr><th>Tool</th><th>From</th><th>To</th><th class="n">Days</th><th class="n">Messages</th></tr>'+D.coverage.map(c=>`<tr><td>${esc(c.tool)}</td><td>${c.first}</td><td>${c.last}</td><td class="n">${c.days}</td><td class="n">${c.messages}</td></tr>${c.note?`<tr><td colspan="5" class="note" style="padding-top:0">${esc(c.note)}</td></tr>`:''}`).join('');
 $('notread').innerHTML='<b>Not in these numbers:</b> '+esc(D.not_read.join(' '));

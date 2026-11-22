@@ -22,6 +22,12 @@ INDEXES = {
         "ask": "In the longest run today, at what point would I have wanted to look?",
         "practice": "For work that matters, ask the AI to pause after each file change or each step.",
     },
+    "size": {
+        "title": "Reply time against change size",
+        "measures": "A run is the file changes the AI made with no message from you in between. For each run, Mirror counts the lines changed (added plus removed), how long the AI kept working after its first change, and how long you took to send your next message, of any kind. Runs are grouped as under 20 lines, 20 to 200, and over 200. Each group shows the median of both times and the share of runs you answered with a short agreement within 15 seconds. A group with fewer than 5 runs is not shown. Only the line count is kept, never the code.",
+        "cannot": "A short gap is not proof you skipped the change: you may have read it while the AI was still working, which is why the run's own length sits next to your reply time. Lines say nothing about difficulty: 300 renamed lines can be easier to check than 5 lines of logic. Changes you read in your editor or in git are invisible here. Cursor's log has no reply times, so it is left out.",
+        "ask": "Which big change did I answer as fast as a small one?",
+    },
     "focus": {
         "title": "Focus (sessions, projects, tools, active time)",
         "measures": "How many separate sessions, projects and tools you touched, and how long you were actively exchanging with AI (gaps over 5 minutes are not counted).",

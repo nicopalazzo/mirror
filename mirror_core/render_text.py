@@ -110,10 +110,12 @@ def week_text(all_days, end_day, days=7):
 
 def explain_text(key):
     e = INDEXES[key]
-    return "\n".join([
+    out = [
         e["title"], "-" * len(e["title"]),
         "What it measures: " + e["measures"],
         "What it cannot tell you: " + e["cannot"],
         "A question to ask yourself: " + e["ask"],
-        "A practice you could try (untested, your call): " + e["practice"],
-    ])
+    ]
+    if e.get("practice"):  # some entries only reveal and carry no practice
+        out.append("A practice you could try (untested, your call): " + e["practice"])
+    return "\n".join(out)

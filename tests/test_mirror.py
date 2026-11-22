@@ -20,6 +20,8 @@ import mirror  # noqa: E402
 from mirror_core.classify import classify  # noqa: E402
 from mirror_core.readers import read_claude, read_codex, read_cursor  # noqa: E402
 from mirror_core.indexes import by_day  # noqa: E402
+from mirror_core.model import Action, Turn  # noqa: E402
+from mirror_core.approval_size import buckets, size_runs, summary  # noqa: E402
 
 FORBIDDEN_IMPORTS = {"socket", "ssl", "urllib", "http", "requests", "ftplib", "smtplib", "telnetlib", "xmlrpc",
                      "subprocess", "ctypes", "asyncio", "aiohttp", "httpx", "websocket", "websockets"}
@@ -89,6 +91,93 @@ class Readers(Base):
         self.assertEqual(len(turns), 2)
         self.assertEqual(sum(1 for a in actions if a.cat == "write"), 1)
         self.assertEqual(tokens["codex-test"]["cached"], 400)
+
+
+class ApprovalSize(Base):
+    def test_claude_and_codex_line_counts(self):
+        claude = self.root / "claude-counts" / "projects" / "project"
+        claude.mkdir(parents=True)
+        rows = [{"type": "assistant", "timestamp": "2026-01-01T09:00:00.000Z", "message": {
+            "id": "m", "model": "test", "content": [
+                {"type": "tool_use", "name": "Write", "input": {"content": "one\ntwo\n"}},
+                {"type": "tool_use", "name": "Edit", "input": {"old_string": "old\nlines", "new_string": "new"}},
+                {"type": "tool_use", "name": "MultiEdit", "input": {"edits": [
+                    {"old_string": "a", "new_string": "b"}, {"old_string": "c\nd", "new_string": "e"}]}},
+                {"type": "tool_use", "name": "NotebookEdit", "input": {"old_source": "old", "new_source": "new\nsource"}},
+            ]}}]
+        (claude / "counts.jsonl").write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+        _, actions, _ = read_claude(claude.parent.parent)
+        self.assertEqual([action.lines for action in actions], [2, 3, 5, 3])
+
+        codex = self.root / "codex-counts" / "sessions" / "2026" / "01" / "01"
+        codex.mkdir(parents=True)
+        patch = "*** Begin Patch\n*** Update File: a.py\n@@\n-old\n+new\n+more\n*** End Patch"
+        rows = [
+            {"timestamp": "2026-01-01T09:00:00.000Z", "type": "response_item", "payload": {"type": "custom_tool_call", "name": "apply_patch", "input": patch}},
+            {"timestamp": "2026-01-01T09:01:00.000Z", "type": "response_item", "payload": {"type": "function_call", "name": "apply_patch", "arguments": json.dumps({"command": ["apply_patch", patch]})}},
+        ]
+        (codex / "rollout-2026-01-01T00-00-00-counts.jsonl").write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+        _, actions, _ = read_codex(codex.parents[3])
+        self.assertEqual([action.lines for action in actions], [3, 3])
+
+    def test_code_text_is_not_kept(self):
+        marker = "SECRET_CODE_7f3a"
+        claude = self.root / "claude-secret" / "projects" / "project"
+        claude.mkdir(parents=True)
+        c_row = {"type": "assistant", "timestamp": "2026-01-01T09:00:00.000Z", "message": {
+            "id": "m", "model": "test", "content": [{"type": "tool_use", "name": "Edit", "input": {"old_string": marker, "new_string": marker}}]}}
+        (claude / "secret.jsonl").write_text(json.dumps(c_row), encoding="utf-8")
+        codex = self.root / "codex-secret" / "sessions" / "2026" / "01" / "01"
+        codex.mkdir(parents=True)
+        x_row = {"timestamp": "2026-01-01T09:00:00.000Z", "type": "response_item", "payload": {"type": "custom_tool_call", "name": "apply_patch", "input": "+" + marker}}
+        (codex / "rollout-2026-01-01T00-00-00-secret.jsonl").write_text(json.dumps(x_row), encoding="utf-8")
+        turns1, actions1, _ = read_claude(claude.parent.parent)
+        turns2, actions2, _ = read_codex(codex.parents[3])
+        objects = turns1 + actions1 + turns2 + actions2
+        self.assertNotIn(marker, "".join(repr(vars(obj)) for obj in objects))
+        self.assertTrue(all(isinstance(action.lines, int) for action in actions1 + actions2))
+
+    def test_size_runs_and_boundaries(self):
+        b = self.base
+        actions = [
+            Action(b + timedelta(seconds=5), "Claude", "s", "p", "m", "write", lines=200),
+            Action(b + timedelta(seconds=9), "Claude", "s", "p", "m", "reply"),
+            Action(b + timedelta(seconds=20), "Claude", "s", "p", "m", "write", timed=False, lines=9),
+            Action(b + timedelta(seconds=30), "Claude", "s", "p", "m", "write", lines=201),
+        ]
+        turns = [
+            Turn(b + timedelta(seconds=14), "Claude", "s", "p", kind="approval"),
+            Turn(b + timedelta(seconds=21), "Claude", "s", "p", kind="approval"),
+        ]
+        runs = size_runs(turns, actions)
+        self.assertEqual(len(runs), 1)  # untimed run is skipped; final run has no next message
+        self.assertEqual((runs[0]["lines"], runs[0]["run_s"], runs[0]["reply_s"], runs[0]["quick"]), (200, 4, 5, True))
+        grouped = buckets(runs + [{"lines": 201, "run_s": 1, "reply_s": 1, "quick": False, "date": b.date()}])
+        self.assertEqual([(row["label"], row["runs"]) for row in grouped], [("under 20", 0), ("20 to 200", 1), ("over 200", 1)])
+        self.assertEqual(summary(runs)["days"], 1)
+
+    def test_patch_given_as_an_object_is_counted(self):
+        from mirror_core.readers import _patch_lines
+        self.assertEqual(_patch_lines({"command": ["apply_patch", "*** Begin Patch\n+a\n-b\n*** End Patch"]}), 2)
+        self.assertEqual(_patch_lines(None), 0)
+
+    def test_explain_size_only_reveals(self):
+        from mirror_core.render_text import explain_text
+        out = explain_text("size")
+        self.assertIn("cannot tell you", out.lower())
+        self.assertIn("still working", out)
+        for word in ("rubber", "practice", "should"):
+            self.assertNotIn(word, out.lower())
+
+    def test_buckets_hide_and_show_statistics(self):
+        b = self.base
+        runs = [{"lines": 1, "run_s": n + 1, "reply_s": n, "quick": n % 2 == 0, "date": b.date()} for n in range(5)]
+        rows = buckets(runs)
+        shown = rows[0]
+        self.assertTrue(shown["shown"])
+        self.assertEqual((shown["reply_median_s"], shown["run_median_s"], shown["quick_pct"]), (2, 3, 60.0))
+        self.assertFalse(rows[1]["shown"])
+        self.assertNotIn("reply_median_s", rows[1])
 
 
 class CursorReader(Base):
@@ -182,6 +271,7 @@ class Security(Base):
         self.assertNotIn("http://", rest.replace("http://www.w3.org", ""))
         self.assertNotIn("https://", rest)
         self.assertIn("default-src 'none'", html)  # the link is navigation only: the page still loads nothing
+        self.assertIn("approval_size", html)
         for phrase in ("login page", "cookie and a token", "renames files", "bouton de déconnexion"):
             self.assertNotIn(phrase, html)
 

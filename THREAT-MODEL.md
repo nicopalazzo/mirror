@@ -28,6 +28,7 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | No networking or command-running code | `python3 -m unittest discover -s tests -v`, test `test_no_network_or_exec_code` |
 | Opens only session files (`*.jsonl`), never credentials, settings, MCP configuration, canvases or Cursor subagent transcripts | Same suite, test `test_only_session_files_are_opened`, which plants decoy files |
 | **Message text is dropped as soon as it is read.** Each message is labelled by simple rules, then only its type and length are kept. Project folders and paths become short hashes. | Test `test_readers_return_no_message_text_or_paths` |
+| **Code the AI wrote is dropped as soon as it is counted.** For each file change (Claude Code `Write`, `Edit`, `MultiEdit`, `NotebookEdit`; Codex `apply_patch`), Mirror reads the change's text in memory, counts its lines, and keeps only that number (`Action.lines`). The report shows medians and shares per size group, never a single change. Cursor changes are not counted. | Test `test_code_text_is_not_kept` plants a marker in Claude and Codex changes and checks it is on no record |
 | Reports and share cards contain no message text | Tests `test_report_is_offline_and_has_no_prompt_text`, `test_share_card_has_numbers_only` |
 | The double-click launchers (`Mirror.command`, `Mirror.bat`) only run `mirror.py` and fetch nothing | Test `test_launchers_exist_and_do_not_fetch_anything`; CI also runs each launcher on Windows, macOS and Linux |
 | The HTML report cannot load anything from the internet | The report carries a strict content policy; a test checks it and allows one external URL only: the feedback link in the footer, a plain link that opens only if the reader clicks it |
@@ -64,7 +65,7 @@ A hook runs with your user rights outside Claude Code's sandbox, on every prompt
 ## What Mirror does not protect
 
 - **Your logs stay on disk as the AI tools wrote them.** Mirror does not redact, move or delete them. Claude Code removes old sessions on its own schedule.
-- **Text exists briefly in memory** while one line of a log is parsed and labelled. Files are read one line at a time, never loaded whole. A crash dump or swap file could still capture that instant.
+- **Text exists briefly in memory** while one line of a log is parsed and labelled. Since the change-size count, this includes the code in each AI file change, which can hold secrets the AI wrote; only its line count is kept. Files are read one line at a time, never loaded whole. A crash dump or swap file could still capture that instant.
 - **Malware or another user with your rights** can read the logs without Mirror.
 - **Windows is covered by automated tests, not by an OS-level network block.** The macOS command above is the only enforcement check we have; on Windows and Linux you rely on the code and the tests.
 - **Labels are rough** (about 70% agreement on one person's messages). Do not use Mirror's output to judge a person, and do not let anyone else use it to judge you.

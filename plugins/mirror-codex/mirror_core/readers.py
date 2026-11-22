@@ -100,6 +100,31 @@ def _claude_cat(name):
     return "shell"
 
 
+def _count_lines(s):
+    if not isinstance(s, str) or not s:
+        return 0
+    if s.endswith("\n"):
+        s = s[:-1]
+    return s.count("\n") + 1 if s else 0
+
+
+def _claude_lines(name, inp):
+    if not isinstance(inp, dict):
+        return 0
+    if name == "Write":
+        return _count_lines(inp.get("content"))
+    if name == "Edit":
+        return _count_lines(inp.get("old_string")) + _count_lines(inp.get("new_string"))
+    if name == "MultiEdit":
+        edits = inp.get("edits")
+        if not isinstance(edits, list):
+            return 0
+        return sum(_claude_lines("Edit", edit) for edit in edits)
+    if name == "NotebookEdit":
+        return _count_lines(inp.get("new_source")) + _count_lines(inp.get("old_source"))
+    return 0
+
+
 def read_claude(root: Path, since_days=None):
     turns, actions, tokens = [], [], {}
     for f in claude_files(root):
@@ -152,7 +177,10 @@ def read_claude(root: Path, since_days=None):
                     if x.get("type") == "text" and (x.get("text") or "").strip():
                         actions.append(Action(ts, "Claude", session, project, model, "reply"))
                     elif x.get("type") == "tool_use":
-                        actions.append(Action(ts, "Claude", session, project, model, _claude_cat(x.get("name", ""))))
+                        name = x.get("name", "")
+                        cat = _claude_cat(name)
+                        actions.append(Action(ts, "Claude", session, project, model, cat,
+                                              lines=_claude_lines(name, x.get("input")) if cat == "write" else 0))
     return turns, actions, tokens
 
 
@@ -169,6 +197,36 @@ def _codex_cat(name, body):
     if _READ.search(b):
         return "read"
     return "shell"
+
+
+def _patch_lines(body):
+    """Counts +/- lines of a Codex patch. Only the count leaves this function; the patch text is dropped."""
+    if isinstance(body, str):
+        try:
+            parsed = json.loads(body)
+        except (TypeError, ValueError):
+            parsed = body
+    else:
+        parsed = body  # some logs carry the arguments as an object, not a string
+    if isinstance(parsed, str):
+        text = parsed
+    else:
+        strings = []
+
+        def collect(value):
+            if isinstance(value, str):
+                strings.append(value)
+            elif isinstance(value, dict):
+                for item in value.values():
+                    collect(item)
+            elif isinstance(value, list):
+                for item in value:
+                    collect(item)
+
+        collect(parsed)
+        text = "\n".join(strings)
+    return sum(line.startswith(("+", "-")) and not line.startswith(("+++", "---", "***"))
+               for line in text.splitlines())
 
 
 def read_codex(root: Path, since_days=None):
@@ -216,8 +274,10 @@ def read_codex(root: Path, since_days=None):
                 elif p.get("role") == "assistant" and text:
                     actions.append(Action(ts, "Codex", session, project, model, "reply"))
             elif t == "response_item" and pt in ("custom_tool_call", "function_call"):
-                body = str(p.get("arguments") or p.get("input") or "")
-                actions.append(Action(ts, "Codex", session, project, model, _codex_cat(p.get("name", ""), body)))
+                body = p.get("arguments") or p.get("input") or ""
+                cat = _codex_cat(p.get("name", ""), body)
+                actions.append(Action(ts, "Codex", session, project, model, cat,
+                                      lines=_patch_lines(body) if cat == "write" else 0))
             elif t == "event_msg" and pt == "token_count" and p.get("info"):
                 last_tok = p["info"].get("total_token_usage")
         if last_tok:
