@@ -73,9 +73,11 @@ def forget():
     removed = False
     r = reports_dir()
     if r.is_dir() and home() not in r.parents:
-        for f in r.glob("mirror-*.html"):
-            f.unlink()
-            removed = True
+        for pattern in ("mirror-*.html", "mirror-team-*.txt", "mirror-team-*.json"):
+            for f in r.glob(pattern):
+                if f.is_file() or f.is_symlink():
+                    f.unlink()
+                    removed = True
         try:
             r.rmdir()  # only succeeds if it is now empty
         except OSError:

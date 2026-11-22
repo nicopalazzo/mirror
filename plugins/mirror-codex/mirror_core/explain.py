@@ -35,6 +35,13 @@ INDEXES = {
         "ask": "Which switch today pulled me away from what I meant to finish?",
         "practice": "Write down the one thing you are finishing before you open a second session.",
     },
+    "team": {
+        "title": "Team mirror (ranges from cards people chose to share)",
+        "measures": "For five or more numbers-only cards that people made with `share-card --json` and handed over themselves: the median and the middle half (25th to 75th percentile) of each number. Never the lowest or highest card, a rank, or who sent which card.",
+        "cannot": "The labels are rough: Mirror agrees with a person on about 86% of messages for question-or-pushback against the rest, and that error adds up across people. These numbers are not for judging anyone: a high or low number does not say whether someone works well, and different work gives different numbers. In a small group a range can still point at someone, so Mirror refuses under 5 cards, and even at 5 people may guess. It cannot tell whether one person sent two cards, or whether a card was edited.",
+        "ask": "What spread surprises us, and what kind of work sits behind it?",
+        "practice": "Talk about the spread as a group, then let each person decide on their own computer what, if anything, they change.",
+    },
     "marks": {
         "title": "Before and after a change you named",
         "measures": "Your four numbers in the 4 weeks before a day you marked with `mirror.py mark`, next to the 4 weeks from that day on, with your usual weekly range beside them.",
@@ -49,6 +56,14 @@ INDEXES = {
         "ask": "In my longest stretch, what changed in how I wrote to the AI, and did I mean that change?",
     },
 }
+
+# One line each, shown on the team page and in its text version.
+TEAM_CANNOT = [
+    "The labels are rough. Mirror agrees with a person on about 86% of messages for question-or-pushback against the rest, and comparing people adds up that error.",
+    "These numbers are not for judging anyone. Different work gives different numbers, and a number does not say whether someone works well.",
+    "In a small group a range can still point at someone. Mirror refuses under 5 cards, but even at 5 people may guess.",
+    "It cannot tell whether one person sent two cards, or whether a card was edited by hand.",
+]
 
 DISCLAIMER = (
     "Mirror is an exploration, not a test, a score or a diagnosis. It counts patterns in your own logs and "

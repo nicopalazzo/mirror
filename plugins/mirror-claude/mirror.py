@@ -257,6 +257,81 @@ def cmd_share(args):
     return 0
 
 
+def cmd_share_json(args):
+    from contextlib import redirect_stdout
+    from mirror_core.team import build_card
+    if not 1 <= args.days <= 366:
+        print("Choose --days between 1 and 366.", file=sys.stderr)
+        return 2
+    try:
+        end = date.fromisoformat(args.day) if args.day else date.today()
+    except ValueError:
+        print("Choose --day as YYYY-MM-DD.", file=sys.stderr)
+        return 2
+    with redirect_stdout(sys.stderr):
+        if not _consent(args, _dirs(args)):
+            return 1
+    args.since = max(args.since, args.days)
+    turns, actions, _, _, _ = _load(args)
+    card = build_card(by_day(turns, actions, QUICK_SECONDS), end, args.days)
+    print(json.dumps(card, indent=2))
+    print("Numbers only: no names, no messages, no projects, no session ids. "
+          "Save it with: python3 mirror.py share-card --json > my-card.json. "
+          "You choose whether to send it; Mirror sends nothing.", file=sys.stderr)
+    return 0
+
+
+def cmd_team(args):
+    from mirror_core.team import (load_cards, summarize, validate_card, validate_summary,
+                                  TooFewCards, place, team_text, write_team_page)
+    path = Path(args.path)
+    try:
+        if path.is_dir():
+            cards, skipped = load_cards(path)
+            print(f"Read {len(cards)} cards")
+            if skipped:
+                print(f"{skipped} files skipped: not a Mirror team card (make cards with `mirror.py share-card --json`).")
+            summary = summarize(cards)
+        else:
+            summary = validate_summary(json.loads(path.read_text(encoding="utf-8")))
+            if summary is None:
+                print("Not a Mirror team summary.")
+                return 2
+    except TooFewCards as exc:
+        print(f"Team mirror needs at least 5 cards; this folder has {exc.n}. With fewer, a range points at a person.")
+        return 2
+    except (OSError, ValueError, RecursionError):
+        print("Could not read a Mirror team summary or folder of cards.")
+        return 2
+    if args.mine:
+        try:
+            mine = validate_card(json.loads(Path(args.mine).read_text(encoding="utf-8")))
+        except (OSError, ValueError, RecursionError):
+            mine = None
+        if mine is None:
+            print("Not a Mirror team card (make cards with `mirror.py share-card --json`).")
+            return 2
+        print("\n".join(place(mine, summary)))
+        print("Shown here only. Mirror wrote nothing and sent nothing.")
+        return 0
+    if path.is_file():
+        print(team_text(summary))
+        return 0
+    out = store.reports_dir() / f"mirror-team-{date.today().isoformat()}"
+    page, txt, data = (out.with_suffix(ext) for ext in (".html", ".txt", ".json"))
+    write_team_page(summary, page)
+    txt.write_text(team_text(summary), encoding="utf-8")
+    data.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print(team_text(summary))
+    for target in (page, txt, data):
+        print(target)
+    print("Share the summary (.json) or the page, not the folder of cards. Delete the cards after the retro.")
+    if args.open:
+        import webbrowser
+        webbrowser.open(page.as_uri())
+    return 0
+
+
 def cmd_doctor(args):
     """Prints versions and counts only, never message text. Paste this if something looks wrong."""
     import platform
@@ -447,7 +522,13 @@ def main(argv=None):
     sub.add_parser("sources", parents=[common], help="what Mirror can see (counts files, opens none)")
     e = sub.add_parser("explain", help="what a number means")
     e.add_argument("index", nargs="?", default="challenge")
-    s = sub.add_parser("share-card", help="print numbers only, to send if you choose")
+    s = sub.add_parser("share-card", parents=[common], help="print numbers only, to send if you choose")
+    s.add_argument("--json", action="store_true")
+    s.add_argument("--days", type=int, default=28)
+    tm = sub.add_parser("team", help="show ranges from cards people chose to share")
+    tm.add_argument("path")
+    tm.add_argument("--mine")
+    tm.add_argument("--open", action="store_true")
     s.add_argument("--last", type=int, default=7)
     s.add_argument("--include-note", action="store_true")
     fb = sub.add_parser("feedback", parents=[common], help="record whether a day's numbers matched how it felt")
@@ -479,6 +560,10 @@ def main(argv=None):
     if not args.cmd:
         p.print_help()
         return 0
+    if args.cmd == "share-card" and args.json:
+        return cmd_share_json(args)
+    if args.cmd == "team":
+        return cmd_team(args)
     if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome", "guess", "limit", "mark", "ledger"):
         return {"explain": cmd_explain, "forget": cmd_forget, "share-card": cmd_share, "mark": cmd_mark, "ledger": cmd_ledger,
                 "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome, "guess": cmd_guess,

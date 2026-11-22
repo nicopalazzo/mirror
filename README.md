@@ -61,6 +61,7 @@ You need Python 3.9+ (check with `python3 --version`, or `py --version` on Windo
 | What Mirror can see | `python3 mirror.py sources` | `py mirror.py sources` |
 | What a number means | `python3 mirror.py explain challenge` | `py mirror.py explain challenge` |
 | Numbers only, to share if you choose | `python3 mirror.py share-card` | `py mirror.py share-card` |
+| Team retro: ranges from 5+ cards, no names (see `docs/TEAM-RETRO.md`) | `python3 mirror.py share-card --json > my-card.json`, then `python3 mirror.py team <folder>` | same with `py` |
 | Something looks wrong: versions and counts, no text | `python3 mirror.py doctor` | `py mirror.py doctor` |
 | Record whether a day's numbers matched (used by the skill) | `python3 mirror.py feedback --match partly` | `py mirror.py feedback --match partly` |
 | Read from a non-default folder | `python3 mirror.py day --cursor-dir /path/to/.cursor` (also `--claude-dir`, `--codex-dir`) | same with `py` |
