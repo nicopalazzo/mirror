@@ -1075,3 +1075,134 @@ class ClaudePlugin(unittest.TestCase):
         text = (self.P / "skills" / "report" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("mirror.py\" report --open", text)
         self.assertNotIn("--yes", text)  # the first-run agreement stays the user's decision
+
+
+class WeeklyGuess(Base):
+    """Guess first, every week: one question in the terminal before a new week's report. Only numbers are kept."""
+
+    def setUp(self):
+        super().setUp()
+        from datetime import datetime
+        from mirror_core import guess
+        self.g = guess
+        today = datetime.now().astimezone()
+        base = (today - timedelta(days=today.weekday() + 5)).replace(hour=9, minute=0, second=0, microsecond=0)  # last Wednesday
+        self.tmp.cleanup()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.claude, self.codex, self.base = make_fixtures.build(self.root, base)
+        self.cursor = self.root / "cursor"
+        self.env.update({"MIRROR_HOME": str(self.root / "home"), "MIRROR_CLAUDE_DIR": str(self.claude),
+                         "MIRROR_CODEX_DIR": str(self.codex), "MIRROR_CURSOR_DIR": str(self.cursor)})
+        cfg = self.root / "home"
+        cfg.mkdir()
+        (cfg / "config.json").write_text(json.dumps({"consent_version": 2, "consented_at": "2026-09-01T10:00:00"}), encoding="utf-8")
+        self.min = mock.patch.object(guess, "MIN_MESSAGES", 1)
+        self.min.start()
+
+    def tearDown(self):
+        self.min.stop()
+        super().tearDown()
+
+    def _report(self, answers=None, tty=True, extra=()):
+        asked = []
+
+        def fake_input(prompt=""):
+            asked.append(prompt)
+            return answers.pop(0) if answers else ""
+        stdin = mock.Mock()
+        stdin.isatty.return_value = tty
+        with mock.patch.object(mirror.sys, "stdin", stdin), mock.patch.object(builtins, "input", fake_input):
+            _, out = run_cli(["report", *extra], self.env)
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        data = json.loads(html.split("const D=", 1)[1].split(";\n", 1)[0])
+        return asked, out, data["guess"]
+
+    def _state(self):
+        return json.loads((self.root / "home" / "guess.json").read_text(encoding="utf-8"))
+
+    def test_last_week_is_the_previous_calendar_week(self):
+        from datetime import date
+        mon, sun, key = self.g.last_week(date(2026, 11, 22))
+        self.assertEqual((mon, sun, key), (date(2026, 11, 9), date(2026, 11, 15), "2026-W46"))
+        self.assertEqual(self.g.last_week(date(2026, 11, 16))[0], date(2026, 11, 9))
+
+    def test_count_pools_questions_and_pushback_over_last_week_only(self):
+        from datetime import date
+        day = lambda e, c, q: {"_counts": {"engaged": e, "challenge": c, "question": q, "approval": 0}}
+        days = {date(2026, 11, 8): day(50, 50, 0), date(2026, 11, 10): day(6, 1, 1), date(2026, 11, 15): day(4, 0, 2),
+                date(2026, 11, 16): day(50, 50, 0)}
+        with mock.patch.object(self.g, "MIN_MESSAGES", 10):
+            c = self.g.count(days, date(2026, 11, 22))
+            self.assertEqual((c["messages"], c["share"]), (10, 40.0))
+            self.assertIsNone(self.g.count({date(2026, 11, 10): day(9, 9, 0)}, date(2026, 11, 22))["share"])
+
+    def test_asks_once_a_week_and_the_page_shows_the_gap(self):
+        asked, out, g = self._report(["35%"])
+        self.assertEqual(len(asked), 1)
+        self.assertIn(self.g.QUESTION, out)
+        self.assertEqual(g["now"]["guess"], 35.0)
+        self.assertIsNotNone(g["now"]["share"])
+        self.assertEqual([h["guess"] for h in g["history"]], [35.0])
+        asked, _, g = self._report()
+        self.assertEqual(asked, [])  # the same week is never asked twice
+        self.assertIsNone(g["now"])
+        self.assertEqual(len(g["history"]), 1)
+
+    def test_state_holds_two_numbers_per_week_and_no_text(self):
+        self._report(["40"])
+        st = self._state()
+        self.assertEqual(set(st), {"enabled", "weeks"})
+        self.assertEqual(set(st["weeks"][0]), {"week", "guess", "count"})
+        raw = (self.root / "home" / "guess.json").read_text(encoding="utf-8")
+        for word in ("login", "cookie", "bouton", "rename"):
+            self.assertNotIn(word, raw)
+
+    def test_enter_skips_silently_and_is_not_asked_again_that_week(self):
+        asked, out, g = self._report([""])
+        self.assertEqual(len(asked), 1)
+        self.assertNotIn("Kept", out)
+        self.assertNotIn("skip", out.split(self.g.QUESTION, 1)[1].lower().replace("enter to skip", ""))
+        self.assertIsNone(g["now"])
+        self.assertEqual(g["history"], [])
+        self.assertEqual(set(self._state()["weeks"][0]), {"week"})  # a skip keeps no number
+        self.assertEqual(self._report()[0], [])
+
+    def test_bad_answer_is_asked_once_more_then_skips(self):
+        asked, _, g = self._report(["lots", "120"])
+        self.assertEqual(len(asked), 2)
+        self.assertIsNone(g["now"])
+        self.assertEqual(self.g.parse("12,5"), 12.5)
+        self.assertIsNone(self.g.parse("-1"))
+
+    def test_never_on_the_same_open_as_the_first_run_quiz(self):
+        (self.root / "home" / "config.json").unlink()  # a new install: the quiz is due
+        with mock.patch.object(mirror, "QUIZ_MIN_MESSAGES", 1):
+            asked, _, g = self._report(["30"], extra=("--yes",))
+            self.assertEqual(asked, [])
+            self.assertIsNone(g["now"])
+            self.assertEqual(self._report(["30"])[0], [])  # the quiz week counts as asked
+
+    def test_not_asked_without_a_terminal_and_nothing_stored(self):
+        asked, _, g = self._report(["30"], tty=False)
+        self.assertEqual(asked, [])
+        self.assertFalse((self.root / "home" / "guess.json").exists())
+
+    def test_guess_off_stops_the_question_and_forget_deletes_it(self):
+        _, out = run_cli(["guess", "off"], self.env)
+        self.assertIn("off", out)
+        self.assertEqual(self._report(["30"])[0], [])
+        _, out = run_cli(["guess", "status"], self.env)
+        self.assertIn("Weekly guess: off", out)
+        run_cli(["guess", "on"], self.env)
+        self.assertEqual(len(self._report(["30"])[0]), 1)
+        run_cli(["forget"], self.env)
+        self.assertFalse((self.root / "home" / "guess.json").exists())
+
+    def test_no_score_streak_or_verdict_in_the_words(self):
+        tpl = (ROOT / "mirror_core" / "report_template.html").read_text(encoding="utf-8")
+        page = tpl.split("function guessInit", 1)[1].split("// ---------- one-time quiz", 1)[0]
+        src = (ROOT / "mirror_core" / "guess.py").read_text(encoding="utf-8").split('"""', 2)[2]
+        for text in (page.lower(), src.lower()):
+            for word in ("streak", "score", "badge", "right", "wrong", "correct", "well done", "great", "accura"):
+                self.assertNotIn(word, text)

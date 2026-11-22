@@ -186,9 +186,18 @@ def cmd_report(args):
     coverage = [{"tool": v["tool"], "first": min(v["dates"]).isoformat(), "last": max(v["dates"]).isoformat(),
                  "days": len(v["dates"]), "messages": v["messages"]} for v in cov.values() if v["dates"]]
     quiz = _quiz_due(all_days)
-    from mirror_core import limit
+    from mirror_core import guess, limit
+    just = None
+    if quiz:
+        guess.mark_asked(all_days)  # never the quiz and the weekly guess on the same open
+    elif sys.stdin.isatty():
+        c = guess.due(all_days)
+        if c:
+            v = guess.ask(c)
+            if v is not None:
+                just = dict(c, guess=v)
     build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz, drift=drift(turns, actions, args.quick_seconds),
-          limit=limit.report_data())
+          limit=limit.report_data(), guess=guess.for_report(just))
     if quiz:
         store.set_quiz("shown")  # the quiz is in this page only; Mirror keeps no copy of the guesses
     try:
@@ -305,6 +314,15 @@ def cmd_welcome(args):
     return 0
 
 
+def cmd_guess(args):
+    from mirror_core import guess
+    if args.action in ("on", "off"):
+        guess.set_enabled(args.action == "on")
+        print(f"Weekly guess {args.action}.")
+    else:
+        print(guess.status())
+
+
 def _limit_at():
     """The evening limit you set, if it is on, for the day and week views."""
     from mirror_core import limit
@@ -371,6 +389,8 @@ def main(argv=None):
     wl = sub.add_parser("welcome", help="the welcome-back line at the start of a week: on/off, settings, status")
     wl.add_argument("action", nargs="?", default="status", choices=["on", "off", "status", "when", "gap-days", "holdback"])
     wl.add_argument("value", nargs="?", help="with a setting: its new value, e.g. 'welcome when start-of-day'")
+    gs = sub.add_parser("guess", help="the one question before a new week's report: on/off, status")
+    gs.add_argument("action", nargs="?", default="status", choices=["on", "off", "status"])
     lm = sub.add_parser("limit", help="the evening limit: a time to stop working with AI (set, on, off, stop, status)")
     lm.add_argument("action", nargs="?", default="status", choices=["set", "on", "off", "stop", "status"])
     lm.add_argument("value", nargs="?", help="with set: a time on the 24-hour clock, e.g. 19:00")
@@ -379,9 +399,10 @@ def main(argv=None):
     if not args.cmd:
         p.print_help()
         return 0
-    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome", "limit"):
+    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome", "guess", "limit"):
         return {"explain": cmd_explain, "forget": cmd_forget, "share-card": cmd_share,
-                "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome, "limit": cmd_limit}[args.cmd](args)
+                "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome, "guess": cmd_guess,
+                "limit": cmd_limit}[args.cmd](args)
     if args.cmd == "sources":
         return cmd_sources(args) or 0
     if args.cmd == "doctor":
