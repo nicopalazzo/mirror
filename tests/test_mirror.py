@@ -20,6 +20,8 @@ import mirror  # noqa: E402
 from mirror_core.classify import classify  # noqa: E402
 from mirror_core.readers import read_claude, read_codex, read_cursor  # noqa: E402
 from mirror_core.indexes import by_day  # noqa: E402
+from mirror_core.model import Action, Turn  # noqa: E402
+from mirror_core.approval_size import buckets, size_runs, summary  # noqa: E402
 
 FORBIDDEN_IMPORTS = {"socket", "ssl", "urllib", "http", "requests", "ftplib", "smtplib", "telnetlib", "xmlrpc",
                      "subprocess", "ctypes", "asyncio", "aiohttp", "httpx", "websocket", "websockets"}
@@ -89,6 +91,93 @@ class Readers(Base):
         self.assertEqual(len(turns), 2)
         self.assertEqual(sum(1 for a in actions if a.cat == "write"), 1)
         self.assertEqual(tokens["codex-test"]["cached"], 400)
+
+
+class ApprovalSize(Base):
+    def test_claude_and_codex_line_counts(self):
+        claude = self.root / "claude-counts" / "projects" / "project"
+        claude.mkdir(parents=True)
+        rows = [{"type": "assistant", "timestamp": "2026-01-01T09:00:00.000Z", "message": {
+            "id": "m", "model": "test", "content": [
+                {"type": "tool_use", "name": "Write", "input": {"content": "one\ntwo\n"}},
+                {"type": "tool_use", "name": "Edit", "input": {"old_string": "old\nlines", "new_string": "new"}},
+                {"type": "tool_use", "name": "MultiEdit", "input": {"edits": [
+                    {"old_string": "a", "new_string": "b"}, {"old_string": "c\nd", "new_string": "e"}]}},
+                {"type": "tool_use", "name": "NotebookEdit", "input": {"old_source": "old", "new_source": "new\nsource"}},
+            ]}}]
+        (claude / "counts.jsonl").write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+        _, actions, _ = read_claude(claude.parent.parent)
+        self.assertEqual([action.lines for action in actions], [2, 3, 5, 3])
+
+        codex = self.root / "codex-counts" / "sessions" / "2026" / "01" / "01"
+        codex.mkdir(parents=True)
+        patch = "*** Begin Patch\n*** Update File: a.py\n@@\n-old\n+new\n+more\n*** End Patch"
+        rows = [
+            {"timestamp": "2026-01-01T09:00:00.000Z", "type": "response_item", "payload": {"type": "custom_tool_call", "name": "apply_patch", "input": patch}},
+            {"timestamp": "2026-01-01T09:01:00.000Z", "type": "response_item", "payload": {"type": "function_call", "name": "apply_patch", "arguments": json.dumps({"command": ["apply_patch", patch]})}},
+        ]
+        (codex / "rollout-2026-01-01T00-00-00-counts.jsonl").write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+        _, actions, _ = read_codex(codex.parents[3])
+        self.assertEqual([action.lines for action in actions], [3, 3])
+
+    def test_code_text_is_not_kept(self):
+        marker = "SECRET_CODE_7f3a"
+        claude = self.root / "claude-secret" / "projects" / "project"
+        claude.mkdir(parents=True)
+        c_row = {"type": "assistant", "timestamp": "2026-01-01T09:00:00.000Z", "message": {
+            "id": "m", "model": "test", "content": [{"type": "tool_use", "name": "Edit", "input": {"old_string": marker, "new_string": marker}}]}}
+        (claude / "secret.jsonl").write_text(json.dumps(c_row), encoding="utf-8")
+        codex = self.root / "codex-secret" / "sessions" / "2026" / "01" / "01"
+        codex.mkdir(parents=True)
+        x_row = {"timestamp": "2026-01-01T09:00:00.000Z", "type": "response_item", "payload": {"type": "custom_tool_call", "name": "apply_patch", "input": "+" + marker}}
+        (codex / "rollout-2026-01-01T00-00-00-secret.jsonl").write_text(json.dumps(x_row), encoding="utf-8")
+        turns1, actions1, _ = read_claude(claude.parent.parent)
+        turns2, actions2, _ = read_codex(codex.parents[3])
+        objects = turns1 + actions1 + turns2 + actions2
+        self.assertNotIn(marker, "".join(repr(vars(obj)) for obj in objects))
+        self.assertTrue(all(isinstance(action.lines, int) for action in actions1 + actions2))
+
+    def test_size_runs_and_boundaries(self):
+        b = self.base
+        actions = [
+            Action(b + timedelta(seconds=5), "Claude", "s", "p", "m", "write", lines=200),
+            Action(b + timedelta(seconds=9), "Claude", "s", "p", "m", "reply"),
+            Action(b + timedelta(seconds=20), "Claude", "s", "p", "m", "write", timed=False, lines=9),
+            Action(b + timedelta(seconds=30), "Claude", "s", "p", "m", "write", lines=201),
+        ]
+        turns = [
+            Turn(b + timedelta(seconds=14), "Claude", "s", "p", kind="approval"),
+            Turn(b + timedelta(seconds=21), "Claude", "s", "p", kind="approval"),
+        ]
+        runs = size_runs(turns, actions)
+        self.assertEqual(len(runs), 1)  # untimed run is skipped; final run has no next message
+        self.assertEqual((runs[0]["lines"], runs[0]["run_s"], runs[0]["reply_s"], runs[0]["quick"]), (200, 4, 5, True))
+        grouped = buckets(runs + [{"lines": 201, "run_s": 1, "reply_s": 1, "quick": False, "date": b.date()}])
+        self.assertEqual([(row["label"], row["runs"]) for row in grouped], [("under 20", 0), ("20 to 200", 1), ("over 200", 1)])
+        self.assertEqual(summary(runs)["days"], 1)
+
+    def test_patch_given_as_an_object_is_counted(self):
+        from mirror_core.readers import _patch_lines
+        self.assertEqual(_patch_lines({"command": ["apply_patch", "*** Begin Patch\n+a\n-b\n*** End Patch"]}), 2)
+        self.assertEqual(_patch_lines(None), 0)
+
+    def test_explain_size_only_reveals(self):
+        from mirror_core.render_text import explain_text
+        out = explain_text("size")
+        self.assertIn("cannot tell you", out.lower())
+        self.assertIn("still working", out)
+        for word in ("rubber", "practice", "should"):
+            self.assertNotIn(word, out.lower())
+
+    def test_buckets_hide_and_show_statistics(self):
+        b = self.base
+        runs = [{"lines": 1, "run_s": n + 1, "reply_s": n, "quick": n % 2 == 0, "date": b.date()} for n in range(5)]
+        rows = buckets(runs)
+        shown = rows[0]
+        self.assertTrue(shown["shown"])
+        self.assertEqual((shown["reply_median_s"], shown["run_median_s"], shown["quick_pct"]), (2, 3, 60.0))
+        self.assertFalse(rows[1]["shown"])
+        self.assertNotIn("reply_median_s", rows[1])
 
 
 class CursorReader(Base):
@@ -182,6 +271,7 @@ class Security(Base):
         self.assertNotIn("http://", rest.replace("http://www.w3.org", ""))
         self.assertNotIn("https://", rest)
         self.assertIn("default-src 'none'", html)  # the link is navigation only: the page still loads nothing
+        self.assertIn("approval_size", html)
         for phrase in ("login page", "cookie and a token", "renames files", "bouton de déconnexion"):
             self.assertNotIn(phrase, html)
 
@@ -238,7 +328,7 @@ class CodexPlugin(unittest.TestCase):
         h = hooks["UserPromptSubmit"][0]["hooks"][0]
         self.assertIn("nudge-hook", h["command"])
         self.assertIn("PLUGIN_ROOT", h["command"])
-        for skill in ("check", "on", "off", "snooze", "status", "report"):
+        for skill in ("check", "on", "off", "snooze", "status", "report", "limit", "stop"):
             text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn(f"name: {skill}", text)
             self.assertNotIn("CLAUDE_PLUGIN_ROOT", text)
@@ -263,6 +353,114 @@ class CodexPlugin(unittest.TestCase):
         self.assertIn("exactly the same command", text)
         self.assertIn("Mirror saves its report in ~/Mirror", text)
         self.assertNotIn("--yes", text.replace("Never add `--yes`", "").replace("do not add flags", ""))
+
+
+
+class EveningLimit(unittest.TestCase):
+    """Evening limit (22 Nov 2026). Times are built in local time, so they read the same on any machine."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"MIRROR_HOME": self.tmp.name})
+        self.env.start()
+        from mirror_core import limit
+        self.l = limit
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def at(self, day, hh, mm=0):
+        from datetime import datetime
+        return datetime(2026, 11, day, hh, mm).astimezone()
+
+    def test_off_by_default_and_parse(self):
+        self.assertIsNone(self.l.on_prompt("ok", True, now=self.at(23, 22)))
+        self.assertFalse((Path(self.tmp.name) / "limit.json").exists())
+        self.assertEqual(self.l.parse_time("19h"), "19:00")
+        self.assertEqual(self.l.parse_time("19h30"), "19:30")
+        self.assertEqual(self.l.parse_time("7:05"), "07:05")
+        self.assertIsNone(self.l.parse_time("7pm"))
+        self.assertIsNone(self.l.parse_time("25:00"))
+        self.assertIn("24-hour", self.l.set_time("soon"))
+
+    def test_holds_once_past_the_limit_then_carried_on(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(23, 18, 59)))
+        line = self.l.on_prompt("go", True, now=self.at(23, 19, 12))
+        self.assertIn("It's 19:12", line)
+        self.assertIn("19:00", line)
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(23, 19, 13)))  # Enter: sent, carried on
+        self.assertIsNone(self.l.on_prompt("more", True, now=self.at(23, 23, 40)))  # once per evening
+        self.assertEqual(self.l.evenings()["2026-11-23"]["answer"], "carried_on")
+        self.assertIsNotNone(self.l.on_prompt("go", True, now=self.at(24, 19, 5)))  # next evening, again
+
+    def test_commands_and_pasted_text_are_not_held(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.assertIsNone(self.l.on_prompt("<pasted_content>...", False, now=self.at(23, 20)))
+        self.assertIsNotNone(self.l.on_prompt("go", True, now=self.at(23, 20, 1)))
+        self.assertIsNone(self.l.on_prompt("/mirror:stop", True, now=self.at(23, 20, 2)))
+        self.assertTrue(self.l.load()["pending"])  # answering Mirror is not carrying on
+
+    def test_stop_and_left_are_recorded(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.l.on_prompt("go", True, now=self.at(23, 19, 30))
+        self.assertIn("19:31", self.l.stop(now=self.at(23, 19, 31)))
+        self.assertEqual(self.l.evenings()["2026-11-23"]["answer"], "stopped")
+        self.l.on_prompt("go", True, now=self.at(24, 21))
+        self.l.on_prompt("good morning", True, now=self.at(25, 9))  # nothing more that evening
+        self.assertEqual(self.l.evenings()["2026-11-24"]["answer"], "left")
+        self.l.on_prompt("go", True, now=self.at(25, 20))
+        self.l.on_prompt("go", True, now=self.at(25, 20, 1))   # carried on
+        self.l.stop(now=self.at(25, 22, 30))                    # then stopped later
+        ev = self.l.evenings()["2026-11-25"]
+        self.assertEqual((ev["answer"], ev["stopped_at"]), ("carried_on", "22:30"))
+
+    def test_after_midnight_belongs_to_the_evening_before(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        line = self.l.on_prompt("go", True, now=self.at(24, 0, 30))
+        self.assertIn("00:30", line)
+        self.assertIn("2026-11-23", self.l.evenings())
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(24, 4, 59)))
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(24, 9)))  # morning: not past
+
+    def test_state_holds_no_prompt_text(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.l.on_prompt("my secret project plan zebra", True, now=self.at(23, 20))
+        self.l.on_prompt("another private zebra", True, now=self.at(23, 20, 1))
+        self.assertNotIn("zebra", (Path(self.tmp.name) / "limit.json").read_text(encoding="utf-8"))
+
+    def test_mirror_off_and_on_drive_the_limit(self):
+        from mirror_core import nudge
+        nudge.respond("on")
+        self.assertFalse(self.l.load()["enabled"])  # on never invents a limit
+        self.l.set_time("19:00")
+        nudge.respond("off")
+        self.assertFalse(self.l.load()["enabled"])
+        nudge.respond("on")
+        self.assertTrue(self.l.load()["enabled"])
+
+    def test_hook_blocks_with_the_limit_line(self):
+        from mirror_core import nudge
+        self.l.set_time("00:00")
+        with mock.patch.object(self.l, "_now", return_value=self.at(23, 20)):
+            out = json.loads(nudge.hook_main(json.dumps({"session_id": "a", "prompt": "go"})))
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("You set 00:00", out["reason"])
+
+    def test_time_summary_is_facts_only(self):
+        from datetime import date
+        from mirror_core.render_text import time_summary, past_limit
+        days = [(date(2026, 11, 23), {"active_minutes": 130, "first": "09:00", "last": "23:10"}),
+                (date(2026, 11, 24), {"active_minutes": 50, "first": "01:15", "last": "18:00"}),
+                (date(2026, 11, 25), {"active_minutes": 20, "first": "10:00", "last": "17:00"})]
+        out = "\n".join(time_summary(days, "19:00"))
+        self.assertIn("3 h 20 min active over 3 days", out)
+        self.assertIn("latest activity 23:10", out)
+        self.assertIn("between midnight and 05:00 on 1 of 3 days", out)
+        self.assertIn("Past your 19:00 limit on 2 of 3 days", out)
+        self.assertFalse(past_limit(days[2][1], "19:00"))
+        for word in ("too", "should", "bad", "good", "try"):
+            self.assertNotIn(f" {word} ", f" {out.lower()} ")
 
 
 if __name__ == "__main__":
@@ -387,6 +585,97 @@ class ReportMobileFirst(unittest.TestCase):
             self.assertTrue(any(k in sel for k in ("svg text", ".eyebrow", ".ramp")), sel + " " + px + "px")
 
 
+class SessionDrift(unittest.TestCase):
+    """Use case 2: how messages change by minutes into a stretch and by hour. Synthetic logs only."""
+
+    def setUp(self):
+        from mirror_core.drift import drift
+        self.drift = drift
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.claude, self.start = make_fixtures.build_drift(self.root / "long")
+        self.turns, self.actions, _ = read_claude(self.claude)
+        self.env = {"MIRROR_HOME": str(self.root / "home"), "MIRROR_CLAUDE_DIR": str(self.claude),
+                    "MIRROR_CODEX_DIR": str(self.root / "none-codex"), "MIRROR_CURSOR_DIR": str(self.root / "none-cursor")}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_drift_pools_counts_by_minutes_into_a_stretch(self):
+        r = self.drift(self.turns, self.actions)
+        self.assertEqual(r["stretches"], 2)  # the 45-minute gap starts a new stretch
+        self.assertEqual(r["longest_minutes"], 150)
+        b = {c["label"]: c for c in r["buckets"]}
+        self.assertEqual([b[k]["messages"] for k in ("0-30 min", "30-60 min", "60-120 min", "120+ min")], [10, 6, 12, 7])
+        self.assertEqual(b["0-30 min"]["asked"], 5)        # 3 in stretch 1 and 2 in stretch 2, pooled
+        self.assertEqual(b["0-30 min"]["asked_pct"], 50.0)  # 5 of 10, not the mean of 50% and 50%
+        self.assertEqual(b["0-30 min"]["stretches"], 2)
+        self.assertEqual(b["60-120 min"]["asked_pct"], 0.0)
+        self.assertEqual((b["60-120 min"]["quick"], b["60-120 min"]["approvals"]), (6, 6))
+        self.assertGreater(b["0-30 min"]["median_chars"], b["120+ min"]["median_chars"])
+        self.assertEqual(b["120+ min"]["median_chars"], float(len(make_fixtures.APPROVAL)))
+
+    def test_drift_hides_cells_with_fewer_than_5(self):
+        r = self.drift(self.turns, self.actions)
+        h15 = r["hours"][(self.start.hour + 3) % 24]  # stretch 2: 4 messages
+        self.assertEqual(h15["messages"], 4)
+        self.assertIsNone(h15["asked_pct"])
+        self.assertIsNone(h15["median_chars"])
+        b = {c["label"]: c for c in r["buckets"]}
+        self.assertEqual(b["30-60 min"]["approvals"], 3)
+        self.assertIsNone(b["30-60 min"]["quick_pct"])  # 3 timed approvals: too few to show a share
+
+    def test_drift_totals_match_the_day_numbers(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        c2, x2, _ = make_fixtures.build(Path(tmp.name))
+        t2, a2, _ = read_claude(c2)
+        t3, a3, _ = read_codex(x2)
+        for turns, actions in ((self.turns, self.actions), (t2 + t3, a2 + a3)):
+            r = self.drift(turns, actions)
+            days = by_day(turns, actions).values()
+            for part in ("buckets", "hours"):
+                self.assertEqual(sum(c["messages"] for c in r[part]), sum(s["_counts"]["engaged"] for s in days))
+                self.assertEqual(sum(c["approvals"] for c in r[part]), sum(s["idx"]["approvals_after_writes"] for s in days))
+                self.assertEqual(sum(c["quick"] for c in r[part]), sum(s["idx"]["quick_approvals"] for s in days))
+
+    def test_drift_window_counts_only_its_days(self):
+        everything = self.drift(self.turns, self.actions)
+        self.assertEqual(self.drift(self.turns, self.actions, dates={self.start.date()}), everything)
+        other = self.drift(self.turns, self.actions, dates={self.start.date() - timedelta(days=30)})
+        self.assertEqual(sum(c["messages"] for c in other["buckets"]), 0)
+        self.assertEqual((other["stretches"], other["longest_minutes"]), (0, 0))  # stretches outside the window are not counted
+
+    def test_drift_week_and_report_have_no_message_text(self):
+        code, out = run_cli(["week", "--yes", "--skip-quiz"], self.env)
+        self.assertEqual(code, 0)
+        self.assertIn("How a stretch changes your messages", out)
+        self.assertIn("0-30 min", out)
+        self.assertIn("120+ min", out)
+        self.assertIn("1 hour with fewer than 5 messages not shown", out)
+        run_cli(["report", "--yes", "--skip-quiz"], self.env)
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        self.assertIn('id="drifttab"', html)
+        self.assertIn('"label": "60-120 min"', html)
+        for text in (out, html):
+            self.assertNotIn(make_fixtures.QUESTION, text)
+            self.assertNotIn(make_fixtures.DIRECTIVE, text)
+            self.assertNotIn("/home/demo/long", text)
+
+    def test_explain_drift_reveals_only(self):
+        code, out = run_cli(["explain", "drift"], {})
+        self.assertEqual(code, 0)
+        self.assertIn("What it cannot tell you: Fewer questions late in a stretch can mean the task got clear", out)
+        self.assertNotIn("practice", out.lower())
+        tpl = (ROOT / "mirror_core" / "report_template.html").read_text(encoding="utf-8")
+        block = tpl.split("session drift (pooled")[1].split("// ---------- calendar")[0]
+        _, week = run_cli(["week", "--yes", "--skip-quiz"], self.env)
+        week = week.split("How a stretch changes your messages")[1].split("Mirror is an exploration")[0]  # the disclaimer says "not a score"
+        for text in (out, block, week):  # what a person reads: the explain entry, the report block, the week section
+            for word in ("fatigue", "cognitive", "health", "score", "you should"):
+                self.assertNotIn(word, text.lower())
+
+
 class Docs(unittest.TestCase):
     def test_skill_frontmatter(self):
         s = (ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -445,6 +734,155 @@ class ReportsFolder(Base):
         self.assertFalse((rep / "mirror-2026-01-01.html").exists())
         self.assertTrue((rep / "my-own-notes.txt").exists())
         self.assertFalse((self.root / "home").exists())
+
+
+class Ledger(Base):
+    """The numbers-only record of each day in ~/.mirror/days.jsonl."""
+
+    def _rows(self):
+        p = self.root / "home" / "days.jsonl"
+        return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines()]
+
+    def test_ledger_holds_numbers_only(self):
+        from mirror_core import ledger
+        from mirror_core.classify import RULES_VERSION
+        _, out = run_cli(["day", "--yes", "--no-feedback"], self.env)
+        self.assertIn("numbers-only record", out)  # said once, when the file is created
+        _, out2 = run_cli(["day", "--yes", "--no-feedback"], self.env)
+        self.assertNotIn("numbers-only record", out2)
+        raw = (self.root / "home" / "days.jsonl").read_text(encoding="utf-8")
+        for phrase in ("login page", "cookie and a token", "renames files", "bouton", "/home/demo", "demo", "sess-1", "rollout", "claude-test", "codex-test"):
+            self.assertNotIn(phrase, raw)
+        rows = self._rows()
+        self.assertTrue(rows)
+        for r in rows:
+            self.assertEqual(set(r), {"date", "rules", "quick_seconds", "stats"})
+            self.assertEqual(r["rules"], RULES_VERSION)
+            self.assertTrue(set(r["stats"]) <= set(ledger.FIELDS))
+
+    def test_ledger_keeps_days_the_logs_lost(self):
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        today = self._rows()[-1]
+        old = dict(today, date="2026-01-05", rules=0)
+        p = self.root / "home" / "days.jsonl"
+        p.write_text(json.dumps(old) + "\n" + p.read_text(encoding="utf-8"), encoding="utf-8")
+        for f in (self.claude / "projects").rglob("*.jsonl"):
+            f.unlink()  # Claude Code's cleanup removes today's session
+        run_cli(["report", "--yes"], self.env)
+        rows = {r["date"]: r for r in self._rows()}
+        self.assertIn("2026-01-05", rows)
+        self.assertEqual(rows[today["date"]]["stats"]["prompts"], today["stats"]["prompts"])  # the fuller day is kept
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        data = json.loads(html.split("const D=", 1)[1].split(";\n", 1)[0])
+        self.assertIn("2026-01-05", [d["date"] for d in data["days"]])
+        self.assertEqual(data["ledger"]["days"], 2)
+        self.assertEqual(data["ledger"]["other_rules"], 1)  # the old day was counted with older rules
+
+    def test_days_still_in_the_logs_are_recomputed(self):
+        from datetime import date
+        from mirror_core import ledger
+        from mirror_core.indexes import day_stats
+        from mirror_core.classify import RULES_VERSION
+        logs = by_day(*read_claude(self.claude, 60)[:2])
+        d = next(iter(logs))
+        small = day_stats([], [])
+        rows = {d: {"rules": 0, "quick_seconds": 15, "stats": small},
+                date(2026, 1, 5): {"rules": RULES_VERSION, "quick_seconds": 15, "stats": logs[d]}}
+        days, out, info = ledger.merge(logs, 15, rows)
+        self.assertIs(days[d], logs[d])
+        self.assertEqual(out[d]["rules"], RULES_VERSION)
+        self.assertIn(date(2026, 1, 5), days)
+        self.assertEqual((info["days"], info["other_rules"]), (1, 0))
+
+    def test_broken_ledger_lines_are_skipped_and_hours_come_back_as_numbers(self):
+        from mirror_core import ledger
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        p = self.root / "home" / "days.jsonl"
+        p.write_text("not json\n" + json.dumps({"date": "2026-01-01", "stats": "x"}) + "\n" + p.read_text(encoding="utf-8"), encoding="utf-8")
+        with mock.patch.dict(os.environ, self.env):
+            rows = ledger.read()
+        self.assertEqual(len(rows), 1)
+        s = next(iter(rows.values()))["stats"]
+        self.assertTrue(all(isinstance(h, int) for h in s["hours_prompts"]))
+
+    def test_ledger_off_stops_reading_and_writing_and_forget_deletes_only_it(self):
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        p = self.root / "home" / "days.jsonl"
+        p.write_text(p.read_text(encoding="utf-8") + json.dumps(dict(json.loads(p.read_text(encoding="utf-8").splitlines()[0]), date="2026-01-05")) + "\n", encoding="utf-8")
+        before = p.read_text(encoding="utf-8")
+        _, out = run_cli(["ledger", "off"], self.env)
+        self.assertIn("off", out)
+        cfg = json.loads((self.root / "home" / "config.json").read_text(encoding="utf-8"))
+        self.assertEqual(cfg["ledger"], "off")
+        run_cli(["report", "--yes"], self.env)
+        self.assertEqual(p.read_text(encoding="utf-8"), before)  # not written
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        data = json.loads(html.split("const D=", 1)[1].split(";\n", 1)[0])
+        self.assertNotIn("2026-01-05", [d["date"] for d in data["days"]])  # not read: log days only
+        self.assertTrue(data["ledger"]["off"])
+        _, out = run_cli(["ledger", "status"], self.env)
+        self.assertIn("off", out)
+        run_cli(["ledger", "forget"], self.env)
+        self.assertFalse(p.exists())
+        self.assertTrue((self.root / "home" / "config.json").exists())  # only the ledger goes
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        self.assertFalse(p.exists())  # still off
+        run_cli(["ledger", "on"], self.env)
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        self.assertTrue(p.exists())
+
+    def test_forget_deletes_ledger_and_markers(self):
+        run_cli(["day", "--yes", "--no-feedback"], self.env)
+        run_cli(["mark", "tried a new rule"], self.env)
+        self.assertTrue((self.root / "home" / "days.jsonl").exists())
+        self.assertTrue((self.root / "home" / "marks.jsonl").exists())
+        run_cli(["forget"], self.env)
+        self.assertFalse((self.root / "home").exists())
+
+
+class Markers(Base):
+    LINE = "Before and after is not cause and effect: many things change at once."
+
+    def test_mark_add_list_remove(self):
+        code, out = run_cli(["mark", "started", "using", "Coanda", "--day", "2026-11-02"], self.env)
+        self.assertEqual(code, 0)
+        self.assertIn("2026-11-02", out)
+        run_cli(["mark", "new model", "--day", "2026-10-01"], self.env)
+        _, out = run_cli(["mark", "list"], self.env)
+        self.assertLess(out.index("new model"), out.index("started using Coanda"))  # oldest first
+        code, out = run_cli(["mark", "remove", "1"], self.env)
+        self.assertEqual(code, 0)
+        _, out = run_cli(["mark", "list"], self.env)
+        self.assertNotIn("new model", out)
+        self.assertEqual(run_cli(["mark", "remove", "9"], self.env)[0], 2)
+
+    def test_mark_refuses_empty_long_or_bad_day(self):
+        self.assertEqual(run_cli(["mark", " "], self.env)[0], 2)
+        self.assertEqual(run_cli(["mark", "x" * 200], self.env)[0], 2)
+        self.assertEqual(run_cli(["mark", "ok", "--day", "yesterday"], self.env)[0], 2)
+        self.assertFalse((self.root / "home" / "marks.jsonl").exists())
+
+    def test_markers_never_in_share_card(self):
+        run_cli(["feedback", "--yes", "--match", "yes", "--note", "a note"], self.env)
+        run_cli(["mark", "SECRET MARKER words"], self.env)
+        for argv in (["share-card"], ["share-card", "--include-note"]):
+            _, card = run_cli(argv, self.env)
+            self.assertNotIn("SECRET MARKER", card)
+        tpl = (ROOT / "mirror_core" / "report_template.html").read_text(encoding="utf-8")
+        card_js = tpl.split("function card(){", 1)[1].split("$('card').value", 1)[0]
+        self.assertNotIn("marks", card_js)  # the report's share box builds from your day answers only
+
+    def test_report_shows_before_and_after_with_the_plain_line_and_no_verdict(self):
+        from datetime import date
+        run_cli(["mark", "tried a <b>new</b> tool", "--day", (date.today() - timedelta(days=2)).isoformat()], self.env)
+        run_cli(["report", "--yes"], self.env)
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        self.assertIn(self.LINE, html)
+        self.assertIn("tried a <b>new<\\/b> tool", html)  # carried as data, escaped when shown
+        block = html.split("before and after a marker", 1)[1].split("(function(){const L=D.ledger", 1)[0].lower()
+        for word in ("better", "worse", "improv", "worked", "caused", "success", "s2", "s3"):
+            self.assertNotIn(word, block)
+        self.assertIn("esc(k.note)", block)
 
 
 class Nudge(unittest.TestCase):
@@ -866,7 +1304,7 @@ class ClaudePlugin(unittest.TestCase):
         h = hooks["UserPromptSubmit"][0]["hooks"][0]
         self.assertNotIn("async", h)  # async hooks send systemMessage to Claude, not the user
         self.assertIn("nudge-hook", h["command"])
-        for skill in ("check", "on", "off", "snooze", "status", "report"):
+        for skill in ("check", "on", "off", "snooze", "status", "report", "limit", "stop"):
             text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn("disable-model-invocation: true", text, skill)
         market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
@@ -1039,3 +1477,134 @@ class TeamMirror(Base):
             (reports / name).write_text('test', encoding='utf-8')
         run_cli(['forget'], dict(self.env, MIRROR_REPORTS=str(reports)))
         self.assertEqual(sorted(p.name for p in reports.iterdir()), ['keep.json', 'keep.txt'])
+
+
+class WeeklyGuess(Base):
+    """Guess first, every week: one question in the terminal before a new week's report. Only numbers are kept."""
+
+    def setUp(self):
+        super().setUp()
+        from datetime import datetime
+        from mirror_core import guess
+        self.g = guess
+        today = datetime.now().astimezone()
+        base = (today - timedelta(days=today.weekday() + 5)).replace(hour=9, minute=0, second=0, microsecond=0)  # last Wednesday
+        self.tmp.cleanup()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.claude, self.codex, self.base = make_fixtures.build(self.root, base)
+        self.cursor = self.root / "cursor"
+        self.env.update({"MIRROR_HOME": str(self.root / "home"), "MIRROR_CLAUDE_DIR": str(self.claude),
+                         "MIRROR_CODEX_DIR": str(self.codex), "MIRROR_CURSOR_DIR": str(self.cursor)})
+        cfg = self.root / "home"
+        cfg.mkdir()
+        (cfg / "config.json").write_text(json.dumps({"consent_version": 2, "consented_at": "2026-09-01T10:00:00"}), encoding="utf-8")
+        self.min = mock.patch.object(guess, "MIN_MESSAGES", 1)
+        self.min.start()
+
+    def tearDown(self):
+        self.min.stop()
+        super().tearDown()
+
+    def _report(self, answers=None, tty=True, extra=()):
+        asked = []
+
+        def fake_input(prompt=""):
+            asked.append(prompt)
+            return answers.pop(0) if answers else ""
+        stdin = mock.Mock()
+        stdin.isatty.return_value = tty
+        with mock.patch.object(mirror.sys, "stdin", stdin), mock.patch.object(builtins, "input", fake_input):
+            _, out = run_cli(["report", *extra], self.env)
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        data = json.loads(html.split("const D=", 1)[1].split(";\n", 1)[0])
+        return asked, out, data["guess"]
+
+    def _state(self):
+        return json.loads((self.root / "home" / "guess.json").read_text(encoding="utf-8"))
+
+    def test_last_week_is_the_previous_calendar_week(self):
+        from datetime import date
+        mon, sun, key = self.g.last_week(date(2026, 11, 22))
+        self.assertEqual((mon, sun, key), (date(2026, 11, 9), date(2026, 11, 15), "2026-W46"))
+        self.assertEqual(self.g.last_week(date(2026, 11, 16))[0], date(2026, 11, 9))
+
+    def test_count_pools_questions_and_pushback_over_last_week_only(self):
+        from datetime import date
+        day = lambda e, c, q: {"_counts": {"engaged": e, "challenge": c, "question": q, "approval": 0}}
+        days = {date(2026, 11, 8): day(50, 50, 0), date(2026, 11, 10): day(6, 1, 1), date(2026, 11, 15): day(4, 0, 2),
+                date(2026, 11, 16): day(50, 50, 0)}
+        with mock.patch.object(self.g, "MIN_MESSAGES", 10):
+            c = self.g.count(days, date(2026, 11, 22))
+            self.assertEqual((c["messages"], c["share"]), (10, 40.0))
+            self.assertIsNone(self.g.count({date(2026, 11, 10): day(9, 9, 0)}, date(2026, 11, 22))["share"])
+
+    def test_asks_once_a_week_and_the_page_shows_the_gap(self):
+        asked, out, g = self._report(["35%"])
+        self.assertEqual(len(asked), 1)
+        self.assertIn(self.g.QUESTION, out)
+        self.assertEqual(g["now"]["guess"], 35.0)
+        self.assertIsNotNone(g["now"]["share"])
+        self.assertEqual([h["guess"] for h in g["history"]], [35.0])
+        asked, _, g = self._report()
+        self.assertEqual(asked, [])  # the same week is never asked twice
+        self.assertIsNone(g["now"])
+        self.assertEqual(len(g["history"]), 1)
+
+    def test_state_holds_two_numbers_per_week_and_no_text(self):
+        self._report(["40"])
+        st = self._state()
+        self.assertEqual(set(st), {"enabled", "weeks"})
+        self.assertEqual(set(st["weeks"][0]), {"week", "guess", "count"})
+        raw = (self.root / "home" / "guess.json").read_text(encoding="utf-8")
+        for word in ("login", "cookie", "bouton", "rename"):
+            self.assertNotIn(word, raw)
+
+    def test_enter_skips_silently_and_is_not_asked_again_that_week(self):
+        asked, out, g = self._report([""])
+        self.assertEqual(len(asked), 1)
+        self.assertNotIn("Kept", out)
+        self.assertNotIn("skip", out.split(self.g.QUESTION, 1)[1].lower().replace("enter to skip", ""))
+        self.assertIsNone(g["now"])
+        self.assertEqual(g["history"], [])
+        self.assertEqual(set(self._state()["weeks"][0]), {"week"})  # a skip keeps no number
+        self.assertEqual(self._report()[0], [])
+
+    def test_bad_answer_is_asked_once_more_then_skips(self):
+        asked, _, g = self._report(["lots", "120"])
+        self.assertEqual(len(asked), 2)
+        self.assertIsNone(g["now"])
+        self.assertEqual(self.g.parse("12,5"), 12.5)
+        self.assertIsNone(self.g.parse("-1"))
+
+    def test_never_on_the_same_open_as_the_first_run_quiz(self):
+        (self.root / "home" / "config.json").unlink()  # a new install: the quiz is due
+        with mock.patch.object(mirror, "QUIZ_MIN_MESSAGES", 1):
+            asked, _, g = self._report(["30"], extra=("--yes",))
+            self.assertEqual(asked, [])
+            self.assertIsNone(g["now"])
+            self.assertEqual(self._report(["30"])[0], [])  # the quiz week counts as asked
+
+    def test_not_asked_without_a_terminal_and_nothing_stored(self):
+        asked, _, g = self._report(["30"], tty=False)
+        self.assertEqual(asked, [])
+        self.assertFalse((self.root / "home" / "guess.json").exists())
+
+    def test_guess_off_stops_the_question_and_forget_deletes_it(self):
+        _, out = run_cli(["guess", "off"], self.env)
+        self.assertIn("off", out)
+        self.assertEqual(self._report(["30"])[0], [])
+        _, out = run_cli(["guess", "status"], self.env)
+        self.assertIn("Weekly guess: off", out)
+        run_cli(["guess", "on"], self.env)
+        self.assertEqual(len(self._report(["30"])[0]), 1)
+        run_cli(["forget"], self.env)
+        self.assertFalse((self.root / "home" / "guess.json").exists())
+
+    def test_no_score_streak_or_verdict_in_the_words(self):
+        tpl = (ROOT / "mirror_core" / "report_template.html").read_text(encoding="utf-8")
+        page = tpl.split("function guessInit", 1)[1].split("// ---------- one-time quiz", 1)[0]
+        src = (ROOT / "mirror_core" / "guess.py").read_text(encoding="utf-8").split('"""', 2)[2]
+        for text in (page.lower(), src.lower()):
+            for word in ("streak", "score", "badge", "right", "wrong", "correct", "well done", "great", "accura"):
+                self.assertNotIn(word, text)

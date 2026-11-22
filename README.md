@@ -32,7 +32,7 @@ Nothing leaves your computer. Mirror has no network code. The only link out is a
 - **First run asks for permission** and lists exactly what it will read.
 - **Your messages are not kept, not even in memory.** Each one is labelled by simple rules the moment it is read and only its type and length survive. Reports and the share card contain numbers only, no message text. (The report page does show your own notes, so send the share card, not the report file.)
 - **Read the [threat model](THREAT-MODEL.md)** for who Mirror protects you from, how to check each protection, and what it does not cover.
-- **It writes only to two folders:** `~/.mirror` (settings and your notes) and `~/Mirror` (report pages, a visible folder chosen so iCloud and OneDrive do not sync it by default). Delete everything with `mirror.py forget`; it removes only Mirror's own report files, never other files you keep in `~/Mirror`.
+- **It writes only to two folders:** `~/.mirror` (settings, your notes and markers, and `days.jsonl`, a numbers-only record of each day) and `~/Mirror` (report pages, a visible folder chosen so iCloud and OneDrive do not sync it by default). Delete everything with `mirror.py forget`; it removes only Mirror's own report files, never other files you keep in `~/Mirror`.
 - Reading the code takes ten minutes. Start with `mirror_core/readers.py`.
 
 ## Easiest: double-click
@@ -40,7 +40,7 @@ Nothing leaves your computer. Mirror has no network code. The only link out is a
 1. Get the folder onto your computer (download the zip from GitHub and unzip it, or `git clone`).
 2. **Mac:** double-click **`Mirror.command`**. **Windows:** double-click **`Mirror.bat`**.
 3. A small window opens. The first time, it lists what Mirror will read and asks `y/N`. It then shows how today went, asks whether that matched your day, and opens the report in your browser.
-4. **To open the report again later,** double-click **`Mirror Report.command`** (Mac) or **`Mirror Report.bat`** (Windows). It rebuilds the report and opens it without asking anything. Reports are also kept in a normal folder called **`Mirror`** in your home folder, so you can find them in Finder or Explorer.
+4. **To open the report again later,** double-click **`Mirror Report.command`** (Mac) or **`Mirror Report.bat`** (Windows). It rebuilds the report and opens it. Once a week it first asks for your guess about last week (Enter skips). Reports are also kept in a normal folder called **`Mirror`** in your home folder, so you can find them in Finder or Explorer.
 
 The files are not signed, so your computer will warn you the first time:
 - **Mac:** "cannot be opened because it is from an unidentified developer". Right-click the file, choose **Open**, then **Open** again. If that option is missing: System Settings, Privacy & Security, scroll down, **Open Anyway**. A zip download can also lose the file's "runnable" flag; if double-clicking does nothing, use the terminal method below or `git clone`.
@@ -65,9 +65,13 @@ You need Python 3.9+ (check with `python3 --version`, or `py --version` on Windo
 | Something looks wrong: versions and counts, no text | `python3 mirror.py doctor` | `py mirror.py doctor` |
 | Record whether a day's numbers matched (used by the skill) | `python3 mirror.py feedback --match partly` | `py mirror.py feedback --match partly` |
 | Read from a non-default folder | `python3 mirror.py day --cursor-dir /path/to/.cursor` (also `--claude-dir`, `--codex-dir`) | same with `py` |
+| Mark a change you made, to see before and after | `python3 mirror.py mark "started using a new tool"` (also `mark list`, `mark remove 2`, `--day YYYY-MM-DD`) | same with `py` |
+| Turn the weekly guess off or on | `python3 mirror.py guess off` | `py mirror.py guess off` |
 | Delete everything Mirror stored | `python3 mirror.py forget` | `py mirror.py forget` |
 
 If `py` is not found on Windows, try `python`. Use `--yes` after the command to accept the first-run notice without being asked.
+
+**Guess first, every week.** The first `report` of a new week asks one question in the terminal before it builds the page: "What share of your messages last week were a question or pushback?" Type a number from 0 to 100, or press Enter to skip. The report then shows your guess next to what Mirror counted, as a gap, with one question to ask yourself. Mirror keeps the two numbers in `~/.mirror/guess.json` and lists past weeks in the report. It never scores the guess. It is not asked on the same open as the first-run quiz, or when the report is built without a terminal (for example from `/mirror:report`).
 
 ## Nudges inside Claude Code (plugin)
 
@@ -106,6 +110,12 @@ If you already work in Claude Code or Codex, install Mirror as a skill and just 
 
 Restart the tool after installing. The skill asks your permission first and tells you that what Mirror prints will appear in the chat, so your AI provider sees the numbers (never your messages). If you would rather keep everything local, run it in a terminal as above.
 
+## Time with AI and an evening limit
+
+The report shows how long and how late you worked with AI over the last 7 days: active time, first and last activity, and nights with activity between midnight and 05:00. `week` shows the same facts.
+
+Optional: set a time to stop, with `python3 mirror.py limit set 19:00`, or `/mirror:limit 19:00` in Claude Code (`$mirror:limit` in Codex). The first message you send after that time is held once, with the time. Enter sends it, and `/mirror:stop` notes that you stopped. Mirror never stops you: it shows you, in the report, how many evenings you went past your limit and what you did each time. `python3 mirror.py limit off` turns it off.
+
 ## The four numbers
 
 1. **Challenge rate:** how often you push back or ask a question, against how often you approve.
@@ -117,12 +127,20 @@ Each has a plain "what it cannot tell you". Run `explain` to read it. Comparison
 
 At the end of `day`, Mirror asks whether the numbers match how the day felt. That answer stays on your computer. `share-card` prints numbers only (add `--include-note` to add your notes), and Mirror sends nothing: you decide whether to pass it on.
 
+## Your months, not just your month
+
+Each time you run `day`, `week`, `report` or `feedback`, Mirror saves each day's numbers to `~/.mirror/days.jsonl`: counts, shares, active minutes and hours of the day, plus the version of the labelling rules they were counted with. No message text, no project names, no session ids. Days still in the logs are counted again from the logs; days the tools have since deleted come from this record, so the 26-week chart keeps going after Claude Code's 30-day cleanup. If the tools now hold less for a day than Mirror already counted (some sessions were deleted), the fuller count is kept. The report says how many days come from the record, and if any were counted with older rules. `mirror.py ledger off` stops Mirror from writing or reading it (reports then show only the days the logs still hold) and keeps the file; `ledger on` starts again; `ledger forget` deletes the file only; `ledger status` shows whether it is on and how many days it holds. `forget` deletes it with everything else.
+
+## Before and after a change you name
+
+`mirror.py mark "started using Coanda"` dates a change in your own words (today, or `--day YYYY-MM-DD`). The report then shows the four numbers in the 4 weeks before each marker next to the 4 weeks from it, with your usual weekly range beside them. It never says which period is better. **Before and after is not cause and effect: many things change at once.** Markers are your words, like your notes: they stay on your computer and are never in the share card. `mark list` shows them, `mark remove N` deletes one.
+
 ## Limits, said plainly
 
 - **Message labels are rules, not understanding.** They work in English and French and are wrong some of the time. On one person's 154 hand-labelled messages, the rules matched the exact label 58% of the time, and got the decision the nudge uses (question or pushback vs anything else) right 86% of the time (a small check, one labeller). Treat the split as rough.
 - **Only tools whose logs Mirror can read are counted:** Claude Code, Codex and Cursor. Web chats (claude.ai, chatgpt.com) leave no local log.
 - **Cursor has no reply times.** Its logs put a time only on your messages, so "quick approvals" cannot be measured for Cursor and active time is approximate. The report says so. I have checked the Cursor reader against one person's Mac logs only; the folder is `~/.cursor` on every system, but Windows layouts are unverified.
-- **Claude Code deletes old sessions after about 30 days** unless you raise `cleanupPeriodDays` in its settings, so history is short.
+- **Claude Code deletes old sessions after about 30 days** unless you raise `cleanupPeriodDays` in its settings. Mirror's numbers-only record keeps the days it has already counted, so history starts the first time you run Mirror, not before.
 - **"Quick approval" is an arbitrary 15-second line.** Change it with `--quick-seconds`.
 - **Different Python or OS versions:** the automated tests run on Python 3.9 to 3.13 on Mac and Windows, and on 3.11 to 3.13 on Linux. If a setup still fails, `doctor` prints what is needed to fix it, without any of your text.
 - **Mac and Linux are tested here; Windows is covered by the automated tests in `.github/workflows/test.yml` but has not been tried by hand.** Tell us what breaks.
@@ -137,4 +155,4 @@ The tests use synthetic logs only (`tests/make_fixtures.py`). There are no real 
 
 ## Status
 
-Version 0.3.1, exploratory (see the [changelog](CHANGELOG.md)). Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.
+Version 0.5.0, exploratory (see the [changelog](CHANGELOG.md)). Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.

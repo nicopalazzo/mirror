@@ -1,5 +1,5 @@
 @echo off
-rem Opens your latest Mirror report in the browser. No questions after the first run. Nothing is sent anywhere.
+rem Opens your latest Mirror report in the browser. After the first run, one optional question a week (your guess; Enter skips). Nothing is sent anywhere.
 setlocal
 cd /d "%~dp0"
 

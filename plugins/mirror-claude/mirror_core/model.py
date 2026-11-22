@@ -25,6 +25,7 @@ class Action:
     actor: str
     cat: str  # reply, read, research, write, shell
     timed: bool = True  # False when the log carries no time for this action (Cursor replies)
+    lines: int = 0  # changed lines for a write (added + removed); the code text itself is never kept.
 
 
 CATEGORIES = ["reply", "read", "research", "write", "shell"]

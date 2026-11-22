@@ -33,7 +33,7 @@ import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import store, welcome
+from . import limit, store, welcome
 from .classify import classify
 
 DEFAULTS = {
@@ -258,12 +258,14 @@ def respond(action, minutes=None, now=None):
                f"{_dur(st['cooldown_minutes'])}. At the start of a week, Mirror also offers a quick look at your last "
                f"week. /mirror:off stops both.")
         welcome.set_enabled(True, now)
+        limit.set_enabled(True, now)  # only comes back if a time was set before
     elif action == "off":
         _close_pending(st, "off")
         st["enabled"] = False
         _log(st, "off")
-        out = "Mirror nudges and the welcome-back line are off. /mirror:on turns them back on."
+        out = "Mirror nudges, the welcome-back line and the evening limit are off. /mirror:on turns them back on."
         welcome.set_enabled(False, now)
+        limit.set_enabled(False, now)
     elif action == "snooze":
         _close_pending(st, "snooze")
         mins = minutes or st["cooldown_minutes"]
@@ -399,6 +401,12 @@ def hook_main(stdin_text):
             line = None
         if line == welcome.PAUSE_LINE:
             return json.dumps({"systemMessage": localize(line)})
+        if line:
+            return json.dumps({"decision": "block", "reason": localize(line)})
+        try:  # the evening limit comes next; a fault in it must never stop the nudge either
+            line = limit.on_prompt(prompt, classify(prompt) in RESET_KINDS + COUNT_KINDS)
+        except Exception:
+            line = None
         if line:
             return json.dumps({"decision": "block", "reason": localize(line)})
         msg = on_prompt(data.get("session_id"), prompt)
