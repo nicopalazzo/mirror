@@ -187,6 +187,7 @@ def cmd_week(args):
 
 
 def cmd_report(args):
+    from mirror_core.approval_size import size_runs, summary
     from mirror_core.render_html import build
     turns, actions, tokens, missing, roots = _load(args)
     all_days, ledger_info = _days(args, turns, actions)
@@ -212,7 +213,8 @@ def cmd_report(args):
             if v is not None:
                 just = dict(c, guess=v)
     build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz, drift=drift(turns, actions, args.quick_seconds),
-          limit=limit.report_data(), guess=guess.for_report(just), marks=marks.read(), ledger=ledger_info)
+          limit=limit.report_data(), guess=guess.for_report(just), marks=marks.read(), ledger=ledger_info,
+          size=summary(size_runs(turns, actions, args.quick_seconds)))
     if quiz:
         store.set_quiz("shown")  # the quiz is in this page only; Mirror keeps no copy of the guesses
     try:

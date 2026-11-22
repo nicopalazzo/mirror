@@ -78,6 +78,7 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 <div class="card" style="margin-top:14px"><div class="hd"><div><h2>Week by week</h2><p class="sub" id="heroSub"></p></div><button class="tbl" data-for="hero" type="button" aria-pressed="false">Table</button></div>
 <div class="ctl" id="metricTabs" role="group" aria-label="Metric"></div><div class="chart" id="hero"></div><p class="note" id="heroNote"></p></div>
 
+<div class="card" id="sizeCard" style="margin-top:14px"><h2>Reply time against change size</h2><p class="sub" id="sizeSub"></p><div id="sizeTab"></div><p class="note" id="sizeNote"></p></div>
 <div class="card" id="baBox" style="margin-top:14px" hidden><h2>Before and after a change you named</h2><p class="sub">Your markers, from <code>mirror.py mark</code>: the 4 weeks before each one (Before) next to the 4 weeks from that day on (After), with your usual range for one week.</p><div id="ba"></div>
 <p class="note"><b>Before and after is not cause and effect: many things change at once.</b> <span id="baCannot"></span></p></div>
 <div class="card" style="margin-top:14px" id="timeCard"><div class="hd"><div><h2>Time with AI</h2><p class="sub" id="timeSub"></p></div></div>
@@ -266,6 +267,13 @@ CH.cal={svg(cw){const M=CALM[CM],map={};ALL.forEach(d=>map[d.date]=M.f(d));const
  table(){const M=CALM[CM];return tbl(['Day',M.label],ALL.slice(-30).reverse().map(d=>{const v=M.f(d);return[fmt(d.date),v===null?'n/a':f1(v)]}))+'<p class="note">Last 30 active days shown.</p>'}};
 function calTabs(){$('calTabs').innerHTML=Object.entries(CALM).map(([k,x])=>`<button type="button" aria-pressed="${k===CM}" data-k="${k}">${x.label}</button>`).join('');$('calTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{CM=b.dataset.k;calTabs();paint('cal')})}
 calTabs();
+// ---------- reply time against change size (Claude Code and Codex; counts only) ----------
+(function(){const Z=D.approval_size,I=D.indexes.size||{},secs=s=>s<90?s+' s':Math.round(s/60)+' min';
+ if(!Z||!Z.runs){$('sizeSub').textContent='No runs of file changes followed by a message of yours yet, in Claude Code or Codex.';$('sizeNote').innerHTML=`<b>Cannot tell you:</b> ${esc(I.cannot||'')}`;return}
+ $('sizeSub').textContent=`${Z.runs} run${Z.runs===1?'':'s'} of file changes over ${Z.days} day${Z.days===1?'':'s'}. A run is what the AI changed with no message from you in between, grouped by lines changed. Times are medians.`;
+ $('sizeTab').innerHTML=tbl(['Lines','Runs','AI working','You replied','Quick ok'],Z.buckets.map(b=>b.shown?[b.label,String(b.runs),secs(b.run_median_s),secs(b.reply_median_s),Math.round(b.quick_pct)+'%']:[b.label,String(b.runs),'-','-','-']));
+ const hid=Z.buckets.some(b=>!b.shown);
+ $('sizeNote').innerHTML=(hid?'A dash: fewer than 5 runs in that group, too few to show. ':'')+`<b>AI working:</b> from its first change to its last action before your message. <b>You replied:</b> time to your next message, of any kind. <b>Quick ok:</b> short agreements within 15 seconds. <b>Cannot tell you:</b> ${esc(I.cannot||'')} <b>Ask yourself:</b> ${esc(I.ask||'')}`})();
 // ---------- time with AI (facts only: when, how long, what you did at your limit) ----------
 {const NIGHT='05:00',L=D.limit||{},AT=L.enabled?L.at:null,EV=L.evenings||{};
 const WK=ALL.filter(d=>(LAST-t(d.date))/DAY<7&&d.last);
