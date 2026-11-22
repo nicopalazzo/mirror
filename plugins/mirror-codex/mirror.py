@@ -143,7 +143,7 @@ def cmd_day(args):
         for m in missing:
             print("Note: " + m)
         return 0
-    print(day_text(d, all_days[d], all_days, missing))
+    print(day_text(d, all_days[d], all_days, missing, limit_at=_limit_at()))
     if sys.stdin.isatty() and not args.no_feedback:
         print("")
         ans = input("Does this match how your day felt? [y]es / [n]o / [p]artly / [s]kip: ").strip().lower()[:1]
@@ -165,7 +165,7 @@ def cmd_week(args):
         _quiz_hold()
         return 0
     end = _pick_day(args, all_days)
-    print(week_text(all_days, end))
+    print(week_text(all_days, end, limit_at=_limit_at()))
     return 0
 
 
@@ -184,7 +184,8 @@ def cmd_report(args):
     coverage = [{"tool": v["tool"], "first": min(v["dates"]).isoformat(), "last": max(v["dates"]).isoformat(),
                  "days": len(v["dates"]), "messages": v["messages"]} for v in cov.values() if v["dates"]]
     quiz = _quiz_due(all_days)
-    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz)
+    from mirror_core import limit
+    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz, limit=limit.report_data())
     if quiz:
         store.set_quiz("shown")  # the quiz is in this page only; Mirror keeps no copy of the guesses
     try:
@@ -301,6 +302,28 @@ def cmd_welcome(args):
     return 0
 
 
+def _limit_at():
+    """The evening limit you set, if it is on, for the day and week views."""
+    from mirror_core import limit
+    st = limit.load()
+    return st.get("at") if st.get("enabled") else None
+
+
+def cmd_limit(args):
+    from mirror_core import limit, nudge
+    if args.action == "set":
+        print(nudge.localize(limit.set_time(args.value or "")))
+    elif args.action in ("on", "off"):
+        limit.set_enabled(args.action == "on")
+        print(nudge.localize(limit.status()))
+    elif args.action == "stop":
+        print(nudge.localize(limit.stop()))
+    else:
+        print(nudge.localize(limit.status()))
+        print("Mirror is at: " + str(Path(__file__).resolve()))
+    return 0
+
+
 def cmd_forget(args):
     print("Deleted " + str(store.home()) if store.forget() else "Nothing to delete.")
     return 0
@@ -345,14 +368,17 @@ def main(argv=None):
     wl = sub.add_parser("welcome", help="the welcome-back line at the start of a week: on/off, settings, status")
     wl.add_argument("action", nargs="?", default="status", choices=["on", "off", "status", "when", "gap-days", "holdback"])
     wl.add_argument("value", nargs="?", help="with a setting: its new value, e.g. 'welcome when start-of-day'")
+    lm = sub.add_parser("limit", help="the evening limit: a time to stop working with AI (set, on, off, stop, status)")
+    lm.add_argument("action", nargs="?", default="status", choices=["set", "on", "off", "stop", "status"])
+    lm.add_argument("value", nargs="?", help="with set: a time on the 24-hour clock, e.g. 19:00")
     sub.add_parser("forget", help="delete everything Mirror stored")
     args = p.parse_args(argv)
     if not args.cmd:
         p.print_help()
         return 0
-    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome"):
+    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome", "limit"):
         return {"explain": cmd_explain, "forget": cmd_forget, "share-card": cmd_share,
-                "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome}[args.cmd](args)
+                "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome, "limit": cmd_limit}[args.cmd](args)
     if args.cmd == "sources":
         return cmd_sources(args) or 0
     if args.cmd == "doctor":

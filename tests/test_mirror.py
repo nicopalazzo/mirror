@@ -238,7 +238,7 @@ class CodexPlugin(unittest.TestCase):
         h = hooks["UserPromptSubmit"][0]["hooks"][0]
         self.assertIn("nudge-hook", h["command"])
         self.assertIn("PLUGIN_ROOT", h["command"])
-        for skill in ("check", "on", "off", "snooze", "status", "report"):
+        for skill in ("check", "on", "off", "snooze", "status", "report", "limit", "stop"):
             text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn(f"name: {skill}", text)
             self.assertNotIn("CLAUDE_PLUGIN_ROOT", text)
@@ -263,6 +263,114 @@ class CodexPlugin(unittest.TestCase):
         self.assertIn("exactly the same command", text)
         self.assertIn("Mirror saves its report in ~/Mirror", text)
         self.assertNotIn("--yes", text.replace("Never add `--yes`", "").replace("do not add flags", ""))
+
+
+
+class EveningLimit(unittest.TestCase):
+    """Evening limit (22 Nov 2026). Times are built in local time, so they read the same on any machine."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"MIRROR_HOME": self.tmp.name})
+        self.env.start()
+        from mirror_core import limit
+        self.l = limit
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def at(self, day, hh, mm=0):
+        from datetime import datetime
+        return datetime(2026, 11, day, hh, mm).astimezone()
+
+    def test_off_by_default_and_parse(self):
+        self.assertIsNone(self.l.on_prompt("ok", True, now=self.at(23, 22)))
+        self.assertFalse((Path(self.tmp.name) / "limit.json").exists())
+        self.assertEqual(self.l.parse_time("19h"), "19:00")
+        self.assertEqual(self.l.parse_time("19h30"), "19:30")
+        self.assertEqual(self.l.parse_time("7:05"), "07:05")
+        self.assertIsNone(self.l.parse_time("7pm"))
+        self.assertIsNone(self.l.parse_time("25:00"))
+        self.assertIn("24-hour", self.l.set_time("soon"))
+
+    def test_holds_once_past_the_limit_then_carried_on(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(23, 18, 59)))
+        line = self.l.on_prompt("go", True, now=self.at(23, 19, 12))
+        self.assertIn("It's 19:12", line)
+        self.assertIn("19:00", line)
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(23, 19, 13)))  # Enter: sent, carried on
+        self.assertIsNone(self.l.on_prompt("more", True, now=self.at(23, 23, 40)))  # once per evening
+        self.assertEqual(self.l.evenings()["2026-11-23"]["answer"], "carried_on")
+        self.assertIsNotNone(self.l.on_prompt("go", True, now=self.at(24, 19, 5)))  # next evening, again
+
+    def test_commands_and_pasted_text_are_not_held(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.assertIsNone(self.l.on_prompt("<pasted_content>...", False, now=self.at(23, 20)))
+        self.assertIsNotNone(self.l.on_prompt("go", True, now=self.at(23, 20, 1)))
+        self.assertIsNone(self.l.on_prompt("/mirror:stop", True, now=self.at(23, 20, 2)))
+        self.assertTrue(self.l.load()["pending"])  # answering Mirror is not carrying on
+
+    def test_stop_and_left_are_recorded(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.l.on_prompt("go", True, now=self.at(23, 19, 30))
+        self.assertIn("19:31", self.l.stop(now=self.at(23, 19, 31)))
+        self.assertEqual(self.l.evenings()["2026-11-23"]["answer"], "stopped")
+        self.l.on_prompt("go", True, now=self.at(24, 21))
+        self.l.on_prompt("good morning", True, now=self.at(25, 9))  # nothing more that evening
+        self.assertEqual(self.l.evenings()["2026-11-24"]["answer"], "left")
+        self.l.on_prompt("go", True, now=self.at(25, 20))
+        self.l.on_prompt("go", True, now=self.at(25, 20, 1))   # carried on
+        self.l.stop(now=self.at(25, 22, 30))                    # then stopped later
+        ev = self.l.evenings()["2026-11-25"]
+        self.assertEqual((ev["answer"], ev["stopped_at"]), ("carried_on", "22:30"))
+
+    def test_after_midnight_belongs_to_the_evening_before(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        line = self.l.on_prompt("go", True, now=self.at(24, 0, 30))
+        self.assertIn("00:30", line)
+        self.assertIn("2026-11-23", self.l.evenings())
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(24, 4, 59)))
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(24, 9)))  # morning: not past
+
+    def test_state_holds_no_prompt_text(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.l.on_prompt("my secret project plan zebra", True, now=self.at(23, 20))
+        self.l.on_prompt("another private zebra", True, now=self.at(23, 20, 1))
+        self.assertNotIn("zebra", (Path(self.tmp.name) / "limit.json").read_text(encoding="utf-8"))
+
+    def test_mirror_off_and_on_drive_the_limit(self):
+        from mirror_core import nudge
+        nudge.respond("on")
+        self.assertFalse(self.l.load()["enabled"])  # on never invents a limit
+        self.l.set_time("19:00")
+        nudge.respond("off")
+        self.assertFalse(self.l.load()["enabled"])
+        nudge.respond("on")
+        self.assertTrue(self.l.load()["enabled"])
+
+    def test_hook_blocks_with_the_limit_line(self):
+        from mirror_core import nudge
+        self.l.set_time("00:00")
+        with mock.patch.object(self.l, "_now", return_value=self.at(23, 20)):
+            out = json.loads(nudge.hook_main(json.dumps({"session_id": "a", "prompt": "go"})))
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("You set 00:00", out["reason"])
+
+    def test_time_summary_is_facts_only(self):
+        from datetime import date
+        from mirror_core.render_text import time_summary, past_limit
+        days = [(date(2026, 11, 23), {"active_minutes": 130, "first": "09:00", "last": "23:10"}),
+                (date(2026, 11, 24), {"active_minutes": 50, "first": "01:15", "last": "18:00"}),
+                (date(2026, 11, 25), {"active_minutes": 20, "first": "10:00", "last": "17:00"})]
+        out = "\n".join(time_summary(days, "19:00"))
+        self.assertIn("3 h 20 min active over 3 days", out)
+        self.assertIn("latest activity 23:10", out)
+        self.assertIn("between midnight and 05:00 on 1 of 3 days", out)
+        self.assertIn("Past your 19:00 limit on 2 of 3 days", out)
+        self.assertFalse(past_limit(days[2][1], "19:00"))
+        for word in ("too", "should", "bad", "good", "try"):
+            self.assertNotIn(f" {word} ", f" {out.lower()} ")
 
 
 if __name__ == "__main__":
@@ -866,7 +974,7 @@ class ClaudePlugin(unittest.TestCase):
         h = hooks["UserPromptSubmit"][0]["hooks"][0]
         self.assertNotIn("async", h)  # async hooks send systemMessage to Claude, not the user
         self.assertIn("nudge-hook", h["command"])
-        for skill in ("check", "on", "off", "snooze", "status", "report"):
+        for skill in ("check", "on", "off", "snooze", "status", "report", "limit", "stop"):
             text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn("disable-model-invocation: true", text, skill)
         market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
