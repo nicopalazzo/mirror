@@ -571,6 +571,25 @@ class Nudge(unittest.TestCase):
         self.assertEqual(json.loads(outs[2])["decision"], "block")
 
 
+    def test_band_present_shortens_the_reason_but_still_blocks(self):
+        from datetime import datetime, timezone
+        self.n.respond("on")
+        st = self.n.load(); st["threshold"] = 3; self.n.save(st)
+        band = Path(self.tmp.name) / "band.json"
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        band.write_text(json.dumps({"sessions": {"a": now}}), encoding="utf-8")
+        outs = [self.n.hook_main(json.dumps({"session_id": "a", "prompt": "ok"})) for _ in range(3)]
+        out = json.loads(outs[2])
+        self.assertEqual(out["decision"], "block")
+        self.assertEqual(out["reason"], self.n.BAND_LINE)
+        # Another session, or a stale heartbeat, gets today's full line.
+        self.assertFalse(self.n.band_present("b"))
+        stale = (datetime.now(timezone.utc) - timedelta(seconds=self.n.BAND_FRESH_SECONDS + 5)).isoformat(timespec="seconds")
+        band.write_text(json.dumps({"sessions": {"a": stale}}), encoding="utf-8")
+        self.assertFalse(self.n.band_present("a"))
+        band.write_text("not json", encoding="utf-8")
+        self.assertFalse(self.n.band_present("a"))
+
 class Welcome(unittest.TestCase):
     """Welcome-back line (23 Oct 2026). Times are mid-day UTC so local-week edges do not matter."""
     def setUp(self):
