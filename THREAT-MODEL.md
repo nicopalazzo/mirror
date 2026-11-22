@@ -74,6 +74,22 @@ The report page now contains your past guesses next to the counts. Like your not
 | Backs off when ignored, and steps back for a day after 3 ignored nudges | Test `test_ignored_nudges_back_off_then_step_back` |
 | The band handover (0.4.1) reads one more file, `~/.mirror/band.json`, and only when a nudge fires. Mirror never writes it: a band above the prompt does, with session ids and times only. With a heartbeat under 60 seconds old for this session, the nudge still holds the message, but the chat shows a short pointer to the band. A missing, stale, broken or other-session file gives the full nudge. No message text is read from or written to it | `mirror_core/nudge.py`, function `band_present`; test `test_band_present_shortens_the_reason_but_still_blocks` |
 
+### Band contract v1 (0.6.0)
+
+Mirror and a band above the prompt (Coanda) share two files in `~/.mirror` (or `$MIRROR_HOME`), one writer each, every write atomic (temp file, then rename). The contract is `BAND-CONTRACT-v1.md`; this table is Mirror's side.
+
+| Protection | How to verify |
+|---|---|
+| `nudge-now.json` is written only by Mirror, only when a nudge is shown to you (not when held back), and removed when that nudge closes. Fields: `v`, `session_id`, `at`, `text`, `ask`, `shown_in`, `buttons`. `text` and `ask` are the nudge's own fixed wording (counts included), already localised; no message text of yours goes in | Tests `test_nudge_now_carries_every_field`, `test_action_copy_wording_is_exact`, `test_ratio_rule_text`, `test_wording_is_localised_for_codex`, `test_held_back_nudge_writes_nothing`, `test_file_removed_when_the_nudge_closes`, `test_state_and_file_hold_no_prompt_text` |
+| `shown_in` is `"band"` only when the band's heartbeat for this session is under 60 seconds old; then the chat gets only the pointer line. Any other case: `"chat"` and the full nudge | Tests `test_shown_in_follows_band_present`, `test_hook_pointer_matches_shown_in` |
+| The pending nudge carries the `session_id` it was shown in. Only that session's next message closes or labels it; another session's message does neither | Test `test_pending_nudge_belongs_to_its_session` |
+| `band.json` is read-only for Mirror. It reads `sessions` (heartbeat) and `answers` (the last button per session) at each hook call | Test `test_this_module_never_writes_band_json` |
+| An answer is applied only when its session is the pending nudge's session, its `button` is one of `check`, `send`, `snooze`, `dismiss`, `off`, and its `at` is at or after the nudge's `at`. Mirror records the applied `at` in `nudge.json` (`answers_applied`), so one answer is applied once | Tests `test_an_answer_is_never_applied_twice`, `test_answer_for_another_session_or_before_the_nudge_is_ignored`, `test_bad_answers_are_ignored` |
+| `send` is recorded exactly as `sent_anyway` and does not double the cooldown. `dismiss` is recorded as `dismissed` and changes no cooldown. `check`, `snooze` and `off` act as the typed commands. An answer can only close the nudge, snooze or turn Mirror off: it can never turn Mirror on or change a setting | Tests `test_sent_anyway_is_exact_with_no_cooldown_doubling`, `test_dismissed_closes_without_touching_the_cooldown`, `test_check_closes_pending`, `test_snooze_and_off_act_as_their_commands`, `test_hook_applies_the_answer_before_the_next_message` |
+| `v` is accepted when missing (0.4.1 bands) or `1`. Any other `v`, a broken file or a file that is not an object counts as no band: the full nudge goes to the chat and no answer is applied | Tests `test_v_is_accepted_and_a_file_without_v_too`, `test_answers_in_a_file_with_an_unknown_version_are_ignored` |
+
+What this does not cover: anything on the band's side, and anyone who can write to your `~/.mirror` folder can press a button for you. They could already edit `nudge.json` itself, so the folder is the trust boundary.
+
 The welcome-back line (`mirror_core/welcome.py`, called from the same hook) adds these:
 
 | Protection | How to verify |

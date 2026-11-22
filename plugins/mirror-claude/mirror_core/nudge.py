@@ -25,6 +25,10 @@ Design (see THREAT-MODEL.md and the JITAI framework, Nahum-Shani et al. 2018):
 - A nudge blocks that one prompt and shows its line where the user is typing; the prompt stays in
   the input box, so Enter sends it. Claude Code does not display systemMessage from this hook
   (tested 26 Sep 2026, v2.1.283, Desktop app and CLI), so blocking is the only direct channel.
+- Band contract v1 (22 Nov 2026, see THREAT-MODEL.md): a shown nudge is also written to `nudge-now.json`
+  (exact wording, session id, where it is shown) and removed when the nudge closes; the pending nudge belongs to
+  that session; button answers the band left in `band.json` are applied at the next hook call. Mirror never
+  writes `band.json`.
 - Any error: exit silently. A broken hook must never block or slow the user's prompt.
 """
 from __future__ import annotations
@@ -52,6 +56,9 @@ DEFAULTS = {
     "holdback": 0.0,
     "action_copy": 0.0,
     "pending_variant": None,
+    "pending_session": None,
+    "pending_at": None,
+    "answers_applied": {},
     "sessions": {},
     "log": [],
 }
@@ -61,14 +68,13 @@ MAX_LOG = 300
 MAX_SESSIONS = 50
 
 CONTROLS = "Enter: send anyway · /mirror:snooze: pause nudges · /mirror:off: turn off"
-COPY = [
-    "Mirror held this message. Nothing is broken. {n} messages without a question. Review Claude's last answer?\n" + CONTROLS,
-    "Mirror held this message. Nothing is broken. {n} messages without a question or pushback. Review Claude's last answer?\n" + CONTROLS,
-]
-COPY_RATIO = ("Mirror held this message. Nothing is broken. {k} of your last {w} messages had no question or pushback. "
-              "Review Claude's last answer?\n" + CONTROLS)
+HEAD = "Mirror held this message. Nothing is broken. "
+COPY_TEXT = ["{n} messages without a question.", "{n} messages without a question or pushback."]
+COPY_RATIO_TEXT = "{k} of your last {w} messages had no question or pushback."
 ASK_PLAIN = "Review Claude's last answer?"
 ASK_ACTION = "Before you send, add one line: what Claude's last answer changes, or one question about it."
+COPY = [HEAD + t + " " + ASK_PLAIN + "\n" + CONTROLS for t in COPY_TEXT]
+COPY_RATIO = HEAD + COPY_RATIO_TEXT + " " + ASK_PLAIN + "\n" + CONTROLS
 INTRO = ("Mirror nudges are off. Type /mirror:on to turn them on. "
          "Mirror counts your messages but never stores or sends what you write.")
 STEP_BACK = ("No answer to the last 3 nudges, so Mirror will stay quiet for a day.\n"
@@ -77,6 +83,8 @@ STEP_BACK = ("No answer to the last 3 nudges, so Mirror will stay quiet for a da
 # there (a fresh heartbeat for this session in band.json), the blocked prompt carries only a pointer to it.
 BAND_LINE = "Mirror is holding this message: answer in the band above \u2191"
 BAND_FRESH_SECONDS = 60
+CONTRACT_V = 1  # band contract version (nudge-now.json and band.json)
+BUTTONS = ("check", "send", "snooze", "dismiss", "off")
 
 
 _rand = random.random  # replaced in tests
@@ -136,29 +144,75 @@ def save(st):
     tmp.replace(_path())
 
 
+def _read_band():
+    """band.json as a dict, or None when missing, broken or of another contract version.
+    A file without "v" (0.4.1 bands) is accepted; so is "v": 1."""
+    try:
+        data = json.loads((store.home() / "band.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    v = data.get("v")
+    if v is not None and (isinstance(v, bool) or v != CONTRACT_V):
+        return None
+    return data
+
+
+def _aware(dt):
+    return dt if dt is None or dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
 def band_present(session_id, now=None):
     """True when the mod-area band wrote a heartbeat for this session in the last BAND_FRESH_SECONDS."""
     try:
-        data = json.loads((store.home() / "band.json").read_text(encoding="utf-8"))
-        seen = _parse((data.get("sessions") or {}).get(session_id or ""))
+        sessions = (_read_band() or {}).get("sessions") or {}
+        seen = _aware(_parse(sessions.get(session_id or "")))
         if seen is None:
             return False
-        if seen.tzinfo is None:
-            seen = seen.replace(tzinfo=timezone.utc)
         return timedelta(0) <= (now or _now()) - seen <= timedelta(seconds=BAND_FRESH_SECONDS)
     except (OSError, ValueError, AttributeError, TypeError):
         return False
+
+
+def _now_path():
+    return store.home() / "nudge-now.json"
+
+
+def _write_now(st, session_id, text, ask, shown_in):
+    """Contract section 1: the nudge the band shows, written atomically. One writer: Mirror."""
+    try:
+        store.home().mkdir(parents=True, exist_ok=True)
+        body = {"v": CONTRACT_V, "session_id": session_id, "at": st["pending_at"], "text": text, "ask": ask,
+                "shown_in": shown_in, "buttons": list(BUTTONS)}
+        tmp = _now_path().with_suffix(".tmp")
+        tmp.write_text(json.dumps(body, indent=1, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_now_path())
+    except OSError:
+        pass  # the chat still carries the nudge
+
+
+def _remove_now():
+    try:
+        _now_path().unlink()
+    except OSError:
+        pass
 
 
 def _log(st, event, **kw):
     st.setdefault("log", []).append(dict({"at": _iso(_now()), "event": event}, **kw))
 
 
-def _close_pending(st, response):
+def _close_pending(st, response, exact=False):
+    """Close the pending nudge. `exact`: the user's own button press named the answer (band contract), so
+    sent_anyway does not count towards ignored_in_row (no cooldown doubling) and dismissed changes nothing."""
+    _remove_now()
     if st.get("pending"):
         arm = st.get("pending_arm") or "shown"
         st["pending"] = False
         st["pending_arm"] = None
+        st["pending_session"] = None
+        st["pending_at"] = None
         variant = st.get("pending_variant") or "plain"
         st["pending_variant"] = None
         _log(st, "response", response=response, arm=arm, variant=variant)
@@ -166,27 +220,68 @@ def _close_pending(st, response):
             return  # the user saw nothing, so nothing was ignored or answered
         if response in ("check", "snooze", "off", "acted", "edited"):
             st["ignored_in_row"] = 0
-        elif response in ("sent_anyway", "ignored"):
+        elif response in ("sent_anyway", "ignored") and not exact:
             st["ignored_in_row"] = st.get("ignored_in_row", 0) + 1
+
+
+def apply_answers(now=None):
+    """Band contract section 2: apply the button the band recorded for the pending nudge's session.
+    Only when that session matches and answer.at is at or after the nudge; each `at` is applied once.
+    Mirror never writes band.json."""
+    now = now or _now()
+    st = load()
+    sid = st.get("pending_session")
+    if not (st.get("pending") and sid):
+        return None
+    ans = ((_read_band() or {}).get("answers") or {}).get(sid)
+    if not isinstance(ans, dict) or ans.get("button") not in BUTTONS:
+        return None
+    at = _aware(_parse(ans.get("at") if isinstance(ans.get("at"), str) else None))
+    started = _aware(_parse(st.get("pending_at")))
+    if at is None or started is None or at < started:
+        return None
+    if st.get("answers_applied", {}).get(sid) == ans["at"]:
+        return None
+    st.setdefault("answers_applied", {})[sid] = ans["at"]
+    button = ans["button"]
+    if button in ("snooze", "off"):
+        save(st)
+        return respond(button, now=now)  # as the typed command; it closes the nudge
+    if button == "check":
+        _close_pending(st, "check", exact=True)
+    elif button == "send":
+        _close_pending(st, "sent_anyway", exact=True)
+    else:
+        _close_pending(st, "dismissed", exact=True)
+    save(st)
+    return button
 
 
 def on_prompt(session_id, prompt, now=None):
     """Called once per user prompt. Returns the one line to show the user, or None."""
+    return _on_prompt(session_id, prompt, now)[0]
+
+
+def _on_prompt(session_id, prompt, now=None):
+    """on_prompt plus where a fired nudge is shown ("band" or "chat"; None when nothing was shown)."""
     now = now or _now()
+    shown_in = None
     st = load()
     kind = classify(prompt or "")
     # A /mirror:* command is the user answering Mirror; handled by the command itself.
     if (prompt or "").lstrip().startswith(("/mirror", "$mirror")):
-        return None
+        return None, None
     if not st["enabled"]:
         if not st["introduced"]:
             st["introduced"] = True
             save(st)
-            return INTRO
-        return None
+            return INTRO, None
+        return None, None
     if kind not in RESET_KINDS + COUNT_KINDS:
-        return None  # commands, pasted text: not counted
-    if st.get("pending"):
+        return None, None  # commands, pasted text: not counted
+    # Only the session that got the nudge answers it (band contract, M2). A pending nudge from before 0.6.0
+    # carries no session and is closed by whoever writes next, as it was.
+    if st.get("pending") and st.get("pending_session") in (None, session_id or "default"):
         _close_pending(st, "acted" if kind in RESET_KINDS else "sent_anyway" if kind == "approval" else "edited")
     sess = st["sessions"].setdefault(session_id or "default", {"streak": 0})
     sess["seen"] = _iso(now)
@@ -217,9 +312,12 @@ def on_prompt(session_id, prompt, now=None):
         else:
             n = sess["streak"]
             k, w = sum(sess["recent"]), len(sess["recent"])
+            idx = len([e for e in st["log"] if e["event"] == "nudge"]) % len(COPY)
             info = {"rule": rule, "streak": n, "r": round(r, 2)}
             st["pending"] = True
             st["last_nudge"] = _iso(now)
+            st["pending_session"] = session_id or "default"
+            st["pending_at"] = _iso(now)
             if _rand() < float(st.get("holdback") or 0.0):
                 st["pending_arm"] = "held"
                 _log(st, "withheld", **info)
@@ -230,16 +328,18 @@ def on_prompt(session_id, prompt, now=None):
                 st["pending_variant"] = variant
                 info["variant"] = variant
                 if rule == "ratio":
-                    msg = COPY_RATIO.format(k=k, w=w)
+                    msg, text = COPY_RATIO.format(k=k, w=w), COPY_RATIO_TEXT.format(k=k, w=w)
                 else:
-                    msg = COPY[len([e for e in st["log"] if e["event"] == "nudge"]) % len(COPY)].format(n=n)
-                if variant == "action":
-                    msg = msg.replace(ASK_PLAIN, ASK_ACTION)
+                    msg, text = COPY[idx].format(n=n), COPY_TEXT[idx].format(n=n)
+                ask = ASK_ACTION if variant == "action" else ASK_PLAIN
+                msg = msg.replace(ASK_PLAIN, ask)
+                shown_in = "band" if band_present(session_id, now) else "chat"
+                _write_now(st, session_id or "default", localize(text), localize(ask), shown_in)
                 _log(st, "nudge", **info)
         sess["streak"] = 0
         sess["recent"] = []
     save(st)
-    return msg
+    return msg, shown_in
 
 
 def respond(action, minutes=None, now=None):
@@ -377,7 +477,7 @@ def status():
         f"Snoozed until: {st['snooze_until'] or '-'}",
         f"Nudges shown: {len(nudges)}; answered with check {responses.count('check')}, snooze {responses.count('snooze')}, "
         f"off {responses.count('off')}; acted (asked or pushed back) {responses.count('acted')}; "
-        f"edited {responses.count('edited')}; sent anyway {responses.count('sent_anyway')}; ignored {responses.count('ignored')}",
+        f"edited {responses.count('edited')}; dismissed {responses.count('dismissed')}; sent anyway {responses.count('sent_anyway')}; ignored {responses.count('ignored')}",
     ]
     arm = _arm_line(st["log"], float(st.get("holdback") or 0.0))
     if arm:
@@ -393,6 +493,10 @@ def hook_main(stdin_text):
     the intro and step-back lines go out as systemMessage. Anything else prints nothing."""
     try:
         data = json.loads(stdin_text or "{}")
+        try:  # a button the band recorded is applied first; a fault in it must never stop the prompt
+            apply_answers()
+        except Exception:
+            pass
         # Claude Code sends "prompt"; the docs name it "user_prompt". Accept both.
         prompt = data.get("prompt") or data.get("user_prompt") or ""
         try:  # the welcome-back line goes first; a fault in it must never stop the nudge
@@ -409,12 +513,12 @@ def hook_main(stdin_text):
             line = None
         if line:
             return json.dumps({"decision": "block", "reason": localize(line)})
-        msg = on_prompt(data.get("session_id"), prompt)
+        msg, shown_in = _on_prompt(data.get("session_id"), prompt)
         if msg in (INTRO, STEP_BACK):
             return json.dumps({"systemMessage": localize(msg)})
         if msg:
             # Still held either way; with the band showing the nudge, the chat gets one short pointer.
-            reason = BAND_LINE if band_present(data.get("session_id")) else localize(msg)
+            reason = BAND_LINE if shown_in == "band" else localize(msg)
             return json.dumps({"decision": "block", "reason": reason})
     except Exception:  # never break the user's prompt
         return ""
