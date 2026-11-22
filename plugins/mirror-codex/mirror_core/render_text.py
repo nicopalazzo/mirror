@@ -18,6 +18,39 @@ def _bar(n, total, width=24):
     return "#" * max(1, round(width * n / total)) if n else ""
 
 
+NIGHT = "05:00"  # activity before this belongs to the night, not the morning
+
+
+def _hm(minutes):
+    h, m = divmod(int(minutes or 0), 60)
+    return f"{h} h {m:02d} min" if h else f"{m} min"
+
+
+def past_limit(s, limit_at):
+    """A day went past the limit if its last activity is at or after it, or it had activity in the night."""
+    if not limit_at or not s.get("last"):
+        return False
+    return s["last"] >= limit_at or (s.get("first") or "99") < NIGHT
+
+
+def time_summary(window, limit_at=None):
+    """Time with AI over a list of (date, stats): plain facts, no verdicts."""
+    days = [(d, s) for d, s in window if s.get("last")]
+    if not days:
+        return []
+    total = sum(s["active_minutes"] for _, s in days)
+    latest_d, latest_s = max(days, key=lambda ds: ds[1]["last"])
+    night = [d for d, s in days if s["first"] < NIGHT]
+    out = [f"Time with AI: {_hm(total)} active over {len(days)} days; latest activity {latest_s['last']} "
+           f"({latest_d.strftime('%a %d %b')})."]
+    if night:
+        out.append(f"Active between midnight and 05:00 on {len(night)} of {len(days)} days.")
+    if limit_at:
+        past = [d for d, s in days if past_limit(s, limit_at)]
+        out.append(f"Past your {limit_at} limit on {len(past)} of {len(days)} days.")
+    return out
+
+
 def _fmt(v, suffix=""):
     return "n/a" if v is None else f"{v}{suffix}"
 
@@ -31,7 +64,7 @@ def _usual(cur, base, key, suffix="%"):
     return f"  ({'higher' if cur > b else 'lower'} than your usual {b}{suffix})"
 
 
-def day_text(day, stats, all_days, tools_missing=()):
+def day_text(day, stats, all_days, tools_missing=(), limit_at=None):
     s = stats
     base = baseline(all_days, day)
     lines = []
@@ -42,6 +75,8 @@ def day_text(day, stats, all_days, tools_missing=()):
         return "\n".join(lines)
     lines.append(f"Tools: {', '.join(s['tools']) or '-'}    Sessions: {s['sessions']}    Projects: {s['projects']}")
     lines.append(f"Active: about {s['active_minutes']} min, between {s['first']} and {s['last']}")
+    if limit_at:
+        lines.append(f"Evening limit {limit_at}: " + ("you were active past it." if past_limit(s, limit_at) else "you were not active past it."))
     lines.append(f"You sent {s['prompts']} prompts; the AI took {s['ai_actions']} actions.")
     lines.append("")
     lines.append("What you did")
@@ -81,7 +116,7 @@ def day_text(day, stats, all_days, tools_missing=()):
     return "\n".join(lines)
 
 
-def week_text(all_days, end_day, days=7):
+def week_text(all_days, end_day, days=7, drift=None, limit_at=None):
     from datetime import timedelta
     window = [(d, s) for d, s in all_days.items() if 0 <= (end_day - d).days < days]
     prev = [(d, s) for d, s in all_days.items() if days <= (end_day - d).days < 2 * days]
@@ -89,13 +124,14 @@ def week_text(all_days, end_day, days=7):
     if not window:
         lines.append("No AI activity found in this window.")
         return "\n".join(lines)
-    lines.append(f"{'day':<12}{'prompts':>8}{'active min':>12}{'pushback':>10}{'quick appr.':>13}{'actions/prompt':>16}")
+    lines.append(f"{'day':<12}{'prompts':>8}{'active min':>12}{'first':>7}{'last':>7}{'pushback':>10}{'quick appr.':>13}{'actions/prompt':>16}")
     for d, s in window:
         i = s["idx"]
         qa = f"{i['quick_approvals']}/{i['approvals_after_writes']}" if i["approvals_after_writes"] else "-"
-        lines.append(f"{d.strftime('%a %d %b'):<12}{s['prompts']:>8}{s['active_minutes']:>12}{_fmt(i['pushback_pct'], '%'):>10}{qa:>13}{_fmt(i['actions_per_prompt']):>16}")
+        lines.append(f"{d.strftime('%a %d %b'):<12}{s['prompts']:>8}{s['active_minutes']:>12}{s['first'] or '-':>7}{s['last'] or '-':>7}{_fmt(i['pushback_pct'], '%'):>10}{qa:>13}{_fmt(i['actions_per_prompt']):>16}")
     cur = pooled([s for _, s in window])
     lines.append("")
+    lines.extend(time_summary(window, limit_at))
     lines.append(f"This window: {cur['prompts']} prompts over {cur['days']} active days; pushback {_fmt(cur['pushback_pct'], '%')}, questions {_fmt(cur['question_pct'], '%')}, approvals {_fmt(cur['approval_pct'], '%')}.")
     if prev:
         p = pooled([s for _, s in prev])
@@ -103,6 +139,9 @@ def week_text(all_days, end_day, days=7):
         lines.append("Compared with your own earlier days only, never with other people.")
     else:
         lines.append("No earlier days to compare with yet.")
+    if drift and drift["stretches"]:
+        lines.append("")
+        lines.append(drift_text(drift))
     lines.append("")
     lines.append(DISCLAIMER)
     return "\n".join(lines)
@@ -110,12 +149,43 @@ def week_text(all_days, end_day, days=7):
 
 def explain_text(key):
     e = INDEXES[key]
-    out = [
+    lines = [
         e["title"], "-" * len(e["title"]),
         "What it measures: " + e["measures"],
         "What it cannot tell you: " + e["cannot"],
         "A question to ask yourself: " + e["ask"],
     ]
-    if e.get("practice"):  # some entries only reveal and carry no practice
-        out.append("A practice you could try (untested, your call): " + e["practice"])
-    return "\n".join(out)
+    if e.get("practice"):  # some numbers only reveal and carry no practice
+        lines.append("A practice you could try (untested, your call): " + e["practice"])
+    return "\n".join(lines)
+
+
+def _drift_row(c):
+    q = "-" if c["asked_pct"] is None else f"{c['asked_pct']}%"
+    m = "-" if c["median_chars"] is None else f"{int(c['median_chars'] + 0.5)}"  # rounds like the report
+    qa = "-" if c["quick_pct"] is None else f"{c['quick']}/{c['approvals']}"
+    return f"  {c['label']:<12}{c['messages']:>9}{q:>16}{m:>14}{qa:>13}"
+
+
+def drift_text(d):
+    """Short section for `week`: how messages change by minutes into a stretch and by hour. No score, no advice."""
+    from .drift import first_and_last, in_n
+    lines = ["How a stretch changes your messages",
+             f"  A stretch: messages in one session with no gap over {d['gap_minutes']} minutes. "
+             f"{d['stretches']} stretches, the longest about {d['longest_minutes']} min.",
+             f"  {'minutes in':<12}{'messages':>9}{'asked/pushed':>16}{'median chars':>14}{'quick appr.':>13}"]
+    lines += [_drift_row(c) for c in d["buckets"] if c["messages"]]
+    hours = [c for c in d["hours"] if c["messages"] >= d["min_cell"]]
+    if hours:
+        lines.append("  hour of day")
+        lines += [_drift_row(c) for c in hours]
+    hidden = sum(1 for c in d["hours"] if 0 < c["messages"] < d["min_cell"])
+    if hidden:
+        lines.append(f"  ({hidden} hour{'s' if hidden != 1 else ''} with fewer than {d['min_cell']} messages not shown.)")
+    fl = first_and_last(d)
+    if fl:
+        a, b = fl
+        lines.append(f"  In the {a['label']} part, {in_n(a['asked_pct'])} messages asked or pushed back; in the {b['label']} part, {in_n(b['asked_pct'])}. "
+                     f"Median length: {int(a['median_chars'] + 0.5)} then {int(b['median_chars'] + 0.5)} characters.")
+    lines.append("  '-' means too few to show. Fewer questions late can mean the task got clear. `mirror explain drift` says more.")
+    return "\n".join(lines)
