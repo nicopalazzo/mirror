@@ -155,4 +155,4 @@ The tests use synthetic logs only (`tests/make_fixtures.py`). There are no real 
 
 ## Status
 
-Version 0.5.0, exploratory (see the [changelog](CHANGELOG.md)). Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.
+Version 0.6.0, exploratory (see the [changelog](CHANGELOG.md)). Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.

@@ -6,7 +6,17 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-22
+
+Command-line tool and both plugins (Claude Code and Codex) at 0.6.0. Everything under "Added" below that is not about the band shipped in this release too.
+
 ### Added
+
+- Band contract v1, Mirror's side (see `THREAT-MODEL.md`, "Band contract v1"). When a nudge is shown, Mirror writes `~/.mirror/nudge-now.json` (atomic) with `v`, `session_id`, `at`, the exact localised `text` and `ask`, `shown_in` (`band` when the band's heartbeat for that session is under 60 seconds old, else `chat`) and the five `buttons`; it removes the file when the nudge closes. A band can show the nudge without rebuilding its wording.
+- The pending nudge now belongs to the session it was shown in. Only that session's next message closes or labels it; a message from another session neither closes it nor is labelled by it. A pending nudge saved by an older version carries no session and is closed by the next message, as before.
+- Mirror reads the `answers` a band records in `band.json` at each hook call and applies the one for the pending nudge's session when its time is at or after the nudge: `dismiss` is new and recorded as `dismissed` (closes the nudge, cooldown unchanged); `send` is recorded as `sent_anyway` with no cooldown doubling; `snooze`, `off` and `check` act as their typed commands. Each answer is applied once (the applied time is kept in `nudge.json`). Mirror never writes `band.json`.
+- `band.json` may carry `"v": 1`; a file without `v` (0.4.1 bands) is still read. Any other `v` is treated as no band. `mirror.py nudge status` also counts dismissed nudges.
+- A typed approval after a nudge still counts as sent anyway and doubles the cooldown, as before; only the band's "Send anyway" button is exempt.
 
 - Team mirror, opt-in and numbers only. `mirror.py share-card --json` prints a card with five rounded numbers from the last 28 days (`--days` to change): share of messages that ask a question or push back, share of approvals within 15 s of a file change, AI actions per message, longest run of file changes, active minutes per active day. Plus the period length, the ISO week and the Mirror version. No name, tool, project, session id, day or note. Each person hands over their own card; Mirror sends nothing.
 - `mirror.py team <folder>` reads cards someone collected by hand. It refuses under 5 cards, hides any number with fewer than 5 values, and shows only the median and the middle half (25th to 75th percentile): never the lowest or highest card, a rank or who sent which. It writes an offline page, a text version and a summary in `~/Mirror` (`forget` removes them). `team <folder or summary> --mine my-card.json` shows where your own card sits, in your terminal only, and writes nothing.

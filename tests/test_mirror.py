@@ -1028,6 +1028,248 @@ class Nudge(unittest.TestCase):
         band.write_text("not json", encoding="utf-8")
         self.assertFalse(self.n.band_present("a"))
 
+class BandContract(unittest.TestCase):
+    """Band contract v1 (22 Nov 2026): nudge-now.json out, answers in, one pending nudge per session."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self.tmp.name)
+        self.env = mock.patch.dict(os.environ, {"MIRROR_HOME": self.tmp.name})
+        self.env.start()
+        from mirror_core import nudge
+        from datetime import datetime, timezone
+        self.n = nudge
+        self.dt = datetime
+        self.utc = timezone.utc
+        self.t0 = datetime(2026, 11, 22, 18, 0, tzinfo=timezone.utc)
+        self.n.respond("on", now=self.t0)
+        st = self.n.load(); st["threshold"] = 3; self.n.save(st)
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def fire(self, sid="a", start=None):
+        t = start or self.t0
+        out = None
+        for i in range(3):
+            out = self.n._on_prompt(sid, "ok", now=t + timedelta(seconds=i))
+        return out
+
+    def now_file(self):
+        return json.loads((self.home / "nudge-now.json").read_text(encoding="utf-8"))
+
+    def band(self, **kw):
+        (self.home / "band.json").write_text(json.dumps(kw), encoding="utf-8")
+
+    def answer(self, sid, button, delta=10, at=None):
+        stamp = at or (self.t0 + timedelta(seconds=2 + delta)).isoformat(timespec="seconds")
+        self.band(v=1, sessions={}, answers={sid: {"at": stamp, "button": button}})
+
+    # M1
+    def test_nudge_now_carries_every_field(self):
+        msg, shown_in = self.fire()
+        self.assertEqual(shown_in, "chat")
+        f = self.now_file()
+        self.assertEqual(sorted(f), ["ask", "at", "buttons", "session_id", "shown_in", "text", "v"])
+        self.assertEqual(f["v"], 1)
+        self.assertEqual(f["session_id"], "a")
+        self.assertEqual(f["text"], "3 messages without a question.")
+        self.assertEqual(f["ask"], self.n.ASK_PLAIN)
+        self.assertEqual(f["shown_in"], "chat")
+        self.assertEqual(f["buttons"], ["check", "send", "snooze", "dismiss", "off"])
+        self.assertEqual(self.dt.fromisoformat(f["at"]), self.t0 + timedelta(seconds=2))
+        self.assertIn(f["text"] + " " + f["ask"], msg)  # the chat line says the same words
+        self.assertFalse(list(self.home.glob("*.tmp")))  # atomic: no temp file left
+
+    def test_shown_in_follows_band_present(self):
+        now = self.t0 + timedelta(seconds=2)
+        self.band(v=1, sessions={"a": now.isoformat(timespec="seconds")})
+        _, shown_in = self.fire()
+        self.assertEqual(shown_in, "band")
+        self.assertEqual(self.now_file()["shown_in"], "band")
+
+    def test_hook_pointer_matches_shown_in(self):
+        st = self.n.load(); st["last_nudge"] = None; self.n.save(st)
+        self.band(sessions={"a": self.dt.now(self.utc).isoformat(timespec="seconds")})
+        outs = [self.n.hook_main(json.dumps({"session_id": "a", "prompt": "ok"})) for _ in range(3)]
+        self.assertEqual(json.loads(outs[2])["reason"], self.n.BAND_LINE)
+        self.assertEqual(self.now_file()["shown_in"], "band")
+
+    def test_action_copy_wording_is_exact(self):
+        st = self.n.load(); st["action_copy"] = 1.0; self.n.save(st)
+        self.fire()
+        self.assertEqual(self.now_file()["ask"], self.n.ASK_ACTION)
+
+    def test_ratio_rule_text(self):
+        st = self.n.load(); st.update(rule="ratio", window=5, ratio_threshold=0.9); self.n.save(st)
+        for i in range(5):
+            self.n.on_prompt("a", "ok", now=self.t0 + timedelta(seconds=i))
+        self.assertEqual(self.now_file()["text"], "5 of your last 5 messages had no question or pushback.")
+
+    def test_wording_is_localised_for_codex(self):
+        with mock.patch.object(self.n, "localize", lambda t: t.replace("Claude's last answer", "the last answer")):
+            self.fire()
+        self.assertEqual(self.now_file()["ask"], "Review the last answer?")
+
+    def test_file_removed_when_the_nudge_closes(self):
+        self.fire()
+        self.assertTrue((self.home / "nudge-now.json").exists())
+        self.n.on_prompt("a", "ok", now=self.t0 + timedelta(minutes=1))
+        self.assertFalse((self.home / "nudge-now.json").exists())
+        self.fire(start=self.t0 + timedelta(hours=10))
+        self.n.respond("off", now=self.t0 + timedelta(hours=11))
+        self.assertFalse((self.home / "nudge-now.json").exists())
+
+    def test_held_back_nudge_writes_nothing(self):
+        st = self.n.load(); st["holdback"] = 0.9; self.n.save(st)
+        with mock.patch.object(self.n, "_rand", lambda: 0.0):
+            msg, shown_in = self.fire()
+        self.assertEqual((msg, shown_in), (None, None))
+        self.assertFalse((self.home / "nudge-now.json").exists())
+
+    # M2
+    def test_pending_nudge_belongs_to_its_session(self):
+        self.fire("a")
+        self.assertEqual(self.n.load()["pending_session"], "a")
+        self.n.on_prompt("b", "ok", now=self.t0 + timedelta(minutes=1))
+        st = self.n.load()
+        self.assertTrue(st["pending"])  # b did not close it
+        self.assertEqual(st["log"][-1]["event"], "nudge")  # and was not labelled by it
+        self.assertTrue((self.home / "nudge-now.json").exists())
+        self.n.on_prompt("a", "why?", now=self.t0 + timedelta(minutes=2))
+        st = self.n.load()
+        self.assertFalse(st["pending"])
+        self.assertEqual([e["response"] for e in st["log"] if e["event"] == "response"], ["acted"])
+
+    # M3
+    def test_dismissed_closes_without_touching_the_cooldown(self):
+        self.fire()
+        st = self.n.load(); st["ignored_in_row"] = 2; self.n.save(st)
+        self.answer("a", "dismiss")
+        self.assertEqual(self.n.apply_answers(now=self.t0 + timedelta(seconds=20)), "dismiss")
+        st = self.n.load()
+        self.assertFalse(st["pending"])
+        self.assertEqual(st["ignored_in_row"], 2)
+        self.assertEqual(st["log"][-1]["response"], "dismissed")
+        self.assertIn("dismissed 1", self.n.status())
+        self.assertFalse((self.home / "nudge-now.json").exists())
+
+    def test_sent_anyway_is_exact_with_no_cooldown_doubling(self):
+        self.fire()
+        self.answer("a", "send")
+        self.n.apply_answers(now=self.t0 + timedelta(seconds=20))
+        st = self.n.load()
+        self.assertEqual(st["log"][-1]["response"], "sent_anyway")
+        self.assertEqual(st["ignored_in_row"], 0)
+        self.assertIn("sent anyway 1", self.n.status())
+        # the held prompt then arrives and is counted as an ordinary message, not labelled again
+        self.n.on_prompt("a", "ok", now=self.t0 + timedelta(seconds=21))
+        self.assertEqual([e["response"] for e in self.n.load()["log"] if e["event"] == "response"], ["sent_anyway"])
+
+    def test_typed_approval_still_counts_as_ignored(self):
+        self.fire()
+        self.n.on_prompt("a", "ok", now=self.t0 + timedelta(minutes=1))
+        self.assertEqual(self.n.load()["ignored_in_row"], 1)
+
+    def test_check_closes_pending(self):
+        self.fire()
+        st = self.n.load(); st["ignored_in_row"] = 2; self.n.save(st)
+        self.answer("a", "check")
+        self.n.apply_answers(now=self.t0 + timedelta(seconds=20))
+        st = self.n.load()
+        self.assertEqual((st["log"][-1]["response"], st["ignored_in_row"], st["pending"]), ("check", 0, False))
+
+    def test_snooze_and_off_act_as_their_commands(self):
+        self.fire()
+        self.answer("a", "snooze")
+        self.n.apply_answers(now=self.t0 + timedelta(seconds=20))
+        st = self.n.load()
+        self.assertEqual([e["response"] for e in st["log"] if e["event"] == "response"], ["snooze"])
+        self.assertEqual(self.n._parse(st["snooze_until"]), self.t0 + timedelta(seconds=20, minutes=st["cooldown_minutes"]))
+        self.fire(start=self.t0 + timedelta(days=1))
+        self.answer("a", "off", at=(self.t0 + timedelta(days=1, seconds=30)).isoformat(timespec="seconds"))
+        self.n.apply_answers(now=self.t0 + timedelta(days=1, seconds=40))
+        st = self.n.load()
+        self.assertEqual((st["enabled"], [e["response"] for e in st["log"] if e["event"] == "response"][-1]), (False, "off"))
+
+    def test_an_answer_is_never_applied_twice(self):
+        self.fire()
+        self.answer("a", "dismiss")
+        self.assertEqual(self.n.apply_answers(now=self.t0 + timedelta(seconds=20)), "dismiss")
+        self.assertEqual(self.n.load()["answers_applied"]["a"], (self.t0 + timedelta(seconds=12)).isoformat(timespec="seconds"))
+        # same file, a second hook call: nothing to close
+        self.assertIsNone(self.n.apply_answers(now=self.t0 + timedelta(seconds=25)))
+        # a new nudge in the same session, the old answer is older than it: not applied
+        self.fire(start=self.t0 + timedelta(hours=10))
+        self.assertIsNone(self.n.apply_answers(now=self.t0 + timedelta(hours=10, seconds=5)))
+        self.assertTrue(self.n.load()["pending"])
+        # an answer stamped at the new nudge's own second would apply once, then never again
+        self.answer("a", "send", at=(self.t0 + timedelta(hours=10, seconds=2)).isoformat(timespec="seconds"))
+        self.assertEqual(self.n.apply_answers(now=self.t0 + timedelta(hours=10, seconds=5)), "send")
+        self.assertIsNone(self.n.apply_answers(now=self.t0 + timedelta(hours=10, seconds=6)))
+
+    def test_answer_for_another_session_or_before_the_nudge_is_ignored(self):
+        self.fire("a")
+        self.answer("b", "dismiss")
+        self.assertIsNone(self.n.apply_answers(now=self.t0 + timedelta(seconds=20)))
+        self.answer("a", "dismiss", at=(self.t0 + timedelta(seconds=1)).isoformat(timespec="seconds"))  # nudge is at +2
+        self.assertIsNone(self.n.apply_answers(now=self.t0 + timedelta(seconds=20)))
+        self.answer("a", "dismiss", at=(self.t0 + timedelta(seconds=2)).isoformat(timespec="seconds"))  # at the nudge: applies
+        self.assertEqual(self.n.apply_answers(now=self.t0 + timedelta(seconds=20)), "dismiss")
+
+    def test_bad_answers_are_ignored(self):
+        self.fire()
+        for bad in ({"at": "yesterday", "button": "dismiss"}, {"at": 5, "button": "dismiss"},
+                    {"at": "2026-11-22T18:00:10+00:00", "button": "explode"}, "dismiss", None, {"button": "dismiss"}):
+            self.band(v=1, answers={"a": bad})
+            self.assertIsNone(self.n.apply_answers(now=self.t0 + timedelta(seconds=20)))
+        (self.home / "band.json").write_text("{broken", encoding="utf-8")
+        self.assertIsNone(self.n.apply_answers())
+        self.assertTrue(self.n.load()["pending"])
+
+    def test_hook_applies_the_answer_before_the_next_message(self):
+        st = self.n.load(); st["last_nudge"] = None; self.n.save(st)
+        for _ in range(3):
+            self.n.hook_main(json.dumps({"session_id": "a", "prompt": "ok"}))
+        at = (self.dt.now(self.utc) + timedelta(seconds=1)).isoformat(timespec="seconds")
+        self.band(v=1, sessions={}, answers={"a": {"at": at, "button": "dismiss"}})
+        self.n.hook_main(json.dumps({"session_id": "a", "prompt": "ok"}))
+        responses = [e["response"] for e in self.n.load()["log"] if e["event"] == "response"]
+        self.assertEqual(responses, ["dismissed"])  # the message itself was not labelled "sent_anyway"
+
+    def test_this_module_never_writes_band_json(self):
+        self.fire()
+        self.answer("a", "dismiss")
+        before = (self.home / "band.json").read_bytes()
+        self.n.apply_answers(now=self.t0 + timedelta(seconds=20))
+        self.assertEqual((self.home / "band.json").read_bytes(), before)
+        src = Path(self.n.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("band.json\").write", src)
+        self.assertEqual(src.count('"band.json"'), 1)  # one place, a read
+
+    # M4
+    def test_v_is_accepted_and_a_file_without_v_too(self):
+        stamp = (self.t0 + timedelta(seconds=2)).isoformat(timespec="seconds")
+        for body, ok in (({"v": 1, "sessions": {"a": stamp}}, True), ({"sessions": {"a": stamp}}, True),
+                         ({"v": 2, "sessions": {"a": stamp}}, False), ({"v": "1", "sessions": {"a": stamp}}, False),
+                         ({"v": True, "sessions": {"a": stamp}}, False), ([], False)):
+            self.band(**body) if isinstance(body, dict) else (self.home / "band.json").write_text("[]", encoding="utf-8")
+            self.assertEqual(self.n.band_present("a", now=self.t0 + timedelta(seconds=10)), ok, body)
+
+    def test_answers_in_a_file_with_an_unknown_version_are_ignored(self):
+        self.fire()
+        self.band(v=2, answers={"a": {"at": (self.t0 + timedelta(seconds=30)).isoformat(timespec="seconds"), "button": "dismiss"}})
+        self.assertIsNone(self.n.apply_answers(now=self.t0 + timedelta(seconds=40)))
+
+    def test_state_and_file_hold_no_prompt_text(self):
+        self.n.on_prompt("a", "ok SECRET CLIENT", now=self.t0 - timedelta(minutes=1))
+        self.n.on_prompt("a", "ok SECRET CLIENT", now=self.t0)
+        self.n.on_prompt("a", "ok SECRET CLIENT", now=self.t0 + timedelta(seconds=1))
+        self.assertTrue((self.home / "nudge-now.json").exists())
+        raw = (self.home / "nudge.json").read_text(encoding="utf-8") + (self.home / "nudge-now.json").read_text(encoding="utf-8")
+        self.assertNotIn("SECRET", raw)
+
+
 class Welcome(unittest.TestCase):
     """Welcome-back line (23 Oct 2026). Times are mid-day UTC so local-week edges do not matter."""
     def setUp(self):
