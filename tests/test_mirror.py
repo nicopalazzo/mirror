@@ -238,7 +238,7 @@ class CodexPlugin(unittest.TestCase):
         h = hooks["UserPromptSubmit"][0]["hooks"][0]
         self.assertIn("nudge-hook", h["command"])
         self.assertIn("PLUGIN_ROOT", h["command"])
-        for skill in ("check", "on", "off", "snooze", "status", "report"):
+        for skill in ("check", "on", "off", "snooze", "status", "report", "limit", "stop"):
             text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn(f"name: {skill}", text)
             self.assertNotIn("CLAUDE_PLUGIN_ROOT", text)
@@ -263,6 +263,114 @@ class CodexPlugin(unittest.TestCase):
         self.assertIn("exactly the same command", text)
         self.assertIn("Mirror saves its report in ~/Mirror", text)
         self.assertNotIn("--yes", text.replace("Never add `--yes`", "").replace("do not add flags", ""))
+
+
+
+class EveningLimit(unittest.TestCase):
+    """Evening limit (22 Nov 2026). Times are built in local time, so they read the same on any machine."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"MIRROR_HOME": self.tmp.name})
+        self.env.start()
+        from mirror_core import limit
+        self.l = limit
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def at(self, day, hh, mm=0):
+        from datetime import datetime
+        return datetime(2026, 11, day, hh, mm).astimezone()
+
+    def test_off_by_default_and_parse(self):
+        self.assertIsNone(self.l.on_prompt("ok", True, now=self.at(23, 22)))
+        self.assertFalse((Path(self.tmp.name) / "limit.json").exists())
+        self.assertEqual(self.l.parse_time("19h"), "19:00")
+        self.assertEqual(self.l.parse_time("19h30"), "19:30")
+        self.assertEqual(self.l.parse_time("7:05"), "07:05")
+        self.assertIsNone(self.l.parse_time("7pm"))
+        self.assertIsNone(self.l.parse_time("25:00"))
+        self.assertIn("24-hour", self.l.set_time("soon"))
+
+    def test_holds_once_past_the_limit_then_carried_on(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(23, 18, 59)))
+        line = self.l.on_prompt("go", True, now=self.at(23, 19, 12))
+        self.assertIn("It's 19:12", line)
+        self.assertIn("19:00", line)
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(23, 19, 13)))  # Enter: sent, carried on
+        self.assertIsNone(self.l.on_prompt("more", True, now=self.at(23, 23, 40)))  # once per evening
+        self.assertEqual(self.l.evenings()["2026-11-23"]["answer"], "carried_on")
+        self.assertIsNotNone(self.l.on_prompt("go", True, now=self.at(24, 19, 5)))  # next evening, again
+
+    def test_commands_and_pasted_text_are_not_held(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.assertIsNone(self.l.on_prompt("<pasted_content>...", False, now=self.at(23, 20)))
+        self.assertIsNotNone(self.l.on_prompt("go", True, now=self.at(23, 20, 1)))
+        self.assertIsNone(self.l.on_prompt("/mirror:stop", True, now=self.at(23, 20, 2)))
+        self.assertTrue(self.l.load()["pending"])  # answering Mirror is not carrying on
+
+    def test_stop_and_left_are_recorded(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.l.on_prompt("go", True, now=self.at(23, 19, 30))
+        self.assertIn("19:31", self.l.stop(now=self.at(23, 19, 31)))
+        self.assertEqual(self.l.evenings()["2026-11-23"]["answer"], "stopped")
+        self.l.on_prompt("go", True, now=self.at(24, 21))
+        self.l.on_prompt("good morning", True, now=self.at(25, 9))  # nothing more that evening
+        self.assertEqual(self.l.evenings()["2026-11-24"]["answer"], "left")
+        self.l.on_prompt("go", True, now=self.at(25, 20))
+        self.l.on_prompt("go", True, now=self.at(25, 20, 1))   # carried on
+        self.l.stop(now=self.at(25, 22, 30))                    # then stopped later
+        ev = self.l.evenings()["2026-11-25"]
+        self.assertEqual((ev["answer"], ev["stopped_at"]), ("carried_on", "22:30"))
+
+    def test_after_midnight_belongs_to_the_evening_before(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        line = self.l.on_prompt("go", True, now=self.at(24, 0, 30))
+        self.assertIn("00:30", line)
+        self.assertIn("2026-11-23", self.l.evenings())
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(24, 4, 59)))
+        self.assertIsNone(self.l.on_prompt("go", True, now=self.at(24, 9)))  # morning: not past
+
+    def test_state_holds_no_prompt_text(self):
+        self.l.set_time("19:00", now=self.at(23, 10))
+        self.l.on_prompt("my secret project plan zebra", True, now=self.at(23, 20))
+        self.l.on_prompt("another private zebra", True, now=self.at(23, 20, 1))
+        self.assertNotIn("zebra", (Path(self.tmp.name) / "limit.json").read_text(encoding="utf-8"))
+
+    def test_mirror_off_and_on_drive_the_limit(self):
+        from mirror_core import nudge
+        nudge.respond("on")
+        self.assertFalse(self.l.load()["enabled"])  # on never invents a limit
+        self.l.set_time("19:00")
+        nudge.respond("off")
+        self.assertFalse(self.l.load()["enabled"])
+        nudge.respond("on")
+        self.assertTrue(self.l.load()["enabled"])
+
+    def test_hook_blocks_with_the_limit_line(self):
+        from mirror_core import nudge
+        self.l.set_time("00:00")
+        with mock.patch.object(self.l, "_now", return_value=self.at(23, 20)):
+            out = json.loads(nudge.hook_main(json.dumps({"session_id": "a", "prompt": "go"})))
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("You set 00:00", out["reason"])
+
+    def test_time_summary_is_facts_only(self):
+        from datetime import date
+        from mirror_core.render_text import time_summary, past_limit
+        days = [(date(2026, 11, 23), {"active_minutes": 130, "first": "09:00", "last": "23:10"}),
+                (date(2026, 11, 24), {"active_minutes": 50, "first": "01:15", "last": "18:00"}),
+                (date(2026, 11, 25), {"active_minutes": 20, "first": "10:00", "last": "17:00"})]
+        out = "\n".join(time_summary(days, "19:00"))
+        self.assertIn("3 h 20 min active over 3 days", out)
+        self.assertIn("latest activity 23:10", out)
+        self.assertIn("between midnight and 05:00 on 1 of 3 days", out)
+        self.assertIn("Past your 19:00 limit on 2 of 3 days", out)
+        self.assertFalse(past_limit(days[2][1], "19:00"))
+        for word in ("too", "should", "bad", "good", "try"):
+            self.assertNotIn(f" {word} ", f" {out.lower()} ")
 
 
 if __name__ == "__main__":
@@ -385,6 +493,97 @@ class ReportMobileFirst(unittest.TestCase):
         small = [m for m in re.findall(r"([^{}]+)\{[^}]*font-size:(\d+)px", css) if int(m[1]) < 14]
         for sel, px in small:
             self.assertTrue(any(k in sel for k in ("svg text", ".eyebrow", ".ramp")), sel + " " + px + "px")
+
+
+class SessionDrift(unittest.TestCase):
+    """Use case 2: how messages change by minutes into a stretch and by hour. Synthetic logs only."""
+
+    def setUp(self):
+        from mirror_core.drift import drift
+        self.drift = drift
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.claude, self.start = make_fixtures.build_drift(self.root / "long")
+        self.turns, self.actions, _ = read_claude(self.claude)
+        self.env = {"MIRROR_HOME": str(self.root / "home"), "MIRROR_CLAUDE_DIR": str(self.claude),
+                    "MIRROR_CODEX_DIR": str(self.root / "none-codex"), "MIRROR_CURSOR_DIR": str(self.root / "none-cursor")}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_drift_pools_counts_by_minutes_into_a_stretch(self):
+        r = self.drift(self.turns, self.actions)
+        self.assertEqual(r["stretches"], 2)  # the 45-minute gap starts a new stretch
+        self.assertEqual(r["longest_minutes"], 150)
+        b = {c["label"]: c for c in r["buckets"]}
+        self.assertEqual([b[k]["messages"] for k in ("0-30 min", "30-60 min", "60-120 min", "120+ min")], [10, 6, 12, 7])
+        self.assertEqual(b["0-30 min"]["asked"], 5)        # 3 in stretch 1 and 2 in stretch 2, pooled
+        self.assertEqual(b["0-30 min"]["asked_pct"], 50.0)  # 5 of 10, not the mean of 50% and 50%
+        self.assertEqual(b["0-30 min"]["stretches"], 2)
+        self.assertEqual(b["60-120 min"]["asked_pct"], 0.0)
+        self.assertEqual((b["60-120 min"]["quick"], b["60-120 min"]["approvals"]), (6, 6))
+        self.assertGreater(b["0-30 min"]["median_chars"], b["120+ min"]["median_chars"])
+        self.assertEqual(b["120+ min"]["median_chars"], float(len(make_fixtures.APPROVAL)))
+
+    def test_drift_hides_cells_with_fewer_than_5(self):
+        r = self.drift(self.turns, self.actions)
+        h15 = r["hours"][(self.start.hour + 3) % 24]  # stretch 2: 4 messages
+        self.assertEqual(h15["messages"], 4)
+        self.assertIsNone(h15["asked_pct"])
+        self.assertIsNone(h15["median_chars"])
+        b = {c["label"]: c for c in r["buckets"]}
+        self.assertEqual(b["30-60 min"]["approvals"], 3)
+        self.assertIsNone(b["30-60 min"]["quick_pct"])  # 3 timed approvals: too few to show a share
+
+    def test_drift_totals_match_the_day_numbers(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        c2, x2, _ = make_fixtures.build(Path(tmp.name))
+        t2, a2, _ = read_claude(c2)
+        t3, a3, _ = read_codex(x2)
+        for turns, actions in ((self.turns, self.actions), (t2 + t3, a2 + a3)):
+            r = self.drift(turns, actions)
+            days = by_day(turns, actions).values()
+            for part in ("buckets", "hours"):
+                self.assertEqual(sum(c["messages"] for c in r[part]), sum(s["_counts"]["engaged"] for s in days))
+                self.assertEqual(sum(c["approvals"] for c in r[part]), sum(s["idx"]["approvals_after_writes"] for s in days))
+                self.assertEqual(sum(c["quick"] for c in r[part]), sum(s["idx"]["quick_approvals"] for s in days))
+
+    def test_drift_window_counts_only_its_days(self):
+        everything = self.drift(self.turns, self.actions)
+        self.assertEqual(self.drift(self.turns, self.actions, dates={self.start.date()}), everything)
+        other = self.drift(self.turns, self.actions, dates={self.start.date() - timedelta(days=30)})
+        self.assertEqual(sum(c["messages"] for c in other["buckets"]), 0)
+        self.assertEqual((other["stretches"], other["longest_minutes"]), (0, 0))  # stretches outside the window are not counted
+
+    def test_drift_week_and_report_have_no_message_text(self):
+        code, out = run_cli(["week", "--yes", "--skip-quiz"], self.env)
+        self.assertEqual(code, 0)
+        self.assertIn("How a stretch changes your messages", out)
+        self.assertIn("0-30 min", out)
+        self.assertIn("120+ min", out)
+        self.assertIn("1 hour with fewer than 5 messages not shown", out)
+        run_cli(["report", "--yes", "--skip-quiz"], self.env)
+        html = next((self.root / "home" / "reports").glob("*.html")).read_text(encoding="utf-8")
+        self.assertIn('id="drifttab"', html)
+        self.assertIn('"label": "60-120 min"', html)
+        for text in (out, html):
+            self.assertNotIn(make_fixtures.QUESTION, text)
+            self.assertNotIn(make_fixtures.DIRECTIVE, text)
+            self.assertNotIn("/home/demo/long", text)
+
+    def test_explain_drift_reveals_only(self):
+        code, out = run_cli(["explain", "drift"], {})
+        self.assertEqual(code, 0)
+        self.assertIn("What it cannot tell you: Fewer questions late in a stretch can mean the task got clear", out)
+        self.assertNotIn("practice", out.lower())
+        tpl = (ROOT / "mirror_core" / "report_template.html").read_text(encoding="utf-8")
+        block = tpl.split("session drift (pooled")[1].split("// ---------- calendar")[0]
+        _, week = run_cli(["week", "--yes", "--skip-quiz"], self.env)
+        week = week.split("How a stretch changes your messages")[1].split("Mirror is an exploration")[0]  # the disclaimer says "not a score"
+        for text in (out, block, week):  # what a person reads: the explain entry, the report block, the week section
+            for word in ("fatigue", "cognitive", "health", "score", "you should"):
+                self.assertNotIn(word, text.lower())
 
 
 class Docs(unittest.TestCase):
@@ -866,7 +1065,7 @@ class ClaudePlugin(unittest.TestCase):
         h = hooks["UserPromptSubmit"][0]["hooks"][0]
         self.assertNotIn("async", h)  # async hooks send systemMessage to Claude, not the user
         self.assertIn("nudge-hook", h["command"])
-        for skill in ("check", "on", "off", "snooze", "status", "report"):
+        for skill in ("check", "on", "off", "snooze", "status", "report", "limit", "stop"):
             text = (self.P / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn("disable-model-invocation: true", text, skill)
         market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))

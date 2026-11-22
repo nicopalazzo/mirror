@@ -70,9 +70,30 @@ The welcome-back line (`mirror_core/welcome.py`, called from the same hook) adds
 | At most one offer a week; 3 skipped offers pause it for 30 days | Tests `test_long_gap_inside_a_week_does_not_offer_twice`, `test_three_skips_in_a_row_pause_for_a_month` |
 | A fault in it never stops the nudge or your prompt | `hook_main` catches errors around it; test `test_hook_never_raises` |
 
+The evening limit (`mirror_core/limit.py`, 0.5.0, called from the same hook after the welcome-back line) adds these:
+
+| Protection | How to verify |
+|---|---|
+| It reads only the clock and the prompt the hook receives; `~/.mirror/limit.json` holds the time you set, dates, clock times and one word per evening (carried on, stopped, no message after it), never message text | Test `test_state_holds_no_prompt_text` (EveningLimit) |
+| Off until you set a time yourself (`mirror.py limit set 19:00` or `/mirror:limit`); `/mirror:off` turns it off, and `/mirror:on` brings it back only if you had set one | Tests `test_off_by_default_and_parse`, `test_mirror_off_and_on_drive_the_limit`; both skills set `disable-model-invocation: true` |
+| It holds one message per evening and never stops you: Enter sends it unchanged, and `/mirror:stop` only records that you stopped | Tests `test_holds_once_past_the_limit_then_carried_on`, `test_stop_and_left_are_recorded` |
+| A fault in it never stops the nudge or your prompt | `hook_main` catches errors around it; test `test_hook_blocks_with_the_limit_line` |
+| `/mirror:limit` asks Claude to run `mirror.py limit set HH:MM` with the time you typed; Claude converts it, so check the line it runs | Read `plugins/mirror-claude/skills/limit/SKILL.md` |
+
 Not verified yet: whether Claude also sees the `systemMessage` line (the docs say it is shown to the user and do not say it is added to context). Check in a live session before relying on it.
 
 A hook runs with your user rights outside Claude Code's sandbox, on every prompt. Installing from a marketplace added as a **local folder** runs the files in that folder as they are; installing from the GitHub marketplace runs a cached, versioned copy that only changes when you update.
+
+## Session drift (unreleased)
+
+How your messages change by minutes into a working stretch (a stretch is one session with no gap over 30 minutes) and by hour of day. It is shown in `week` and in the report. It reads no new file and no new field: it uses the time, label and length that Mirror already keeps for each message. What is new is that message length is now printed, as a median.
+
+| Protection | How to verify |
+|---|---|
+| Only pooled counts are printed: messages, how many asked or pushed back, the median length in characters, and quick approvals, per part of a stretch and per hour. Never message text, project names or paths | Test `test_drift_week_and_report_have_no_message_text` |
+| A part or hour with fewer than 5 messages shows no share and no median, so a single message's length is not shown on its own | Test `test_drift_hides_cells_with_fewer_than_5` |
+| Nothing new is stored: the numbers are worked out from the logs each time and live only in the printed text and the report page | `mirror_core/drift.py` writes no file; `mirror.py` passes the result straight to `week_text` and `render_html.build` |
+| No score, no threshold, no advice; the `explain drift` entry carries a "cannot tell" line and no practice | Test `test_explain_drift_reveals_only` |
 
 ## What Mirror does not protect
 

@@ -26,6 +26,7 @@ from mirror_core.explain import INDEXES, DISCLAIMER
 from mirror_core.indexes import by_day, QUICK_SECONDS
 from mirror_core.readers import default_dirs, read_claude, read_codex, read_cursor, inventory
 from mirror_core.render_text import day_text, week_text, explain_text
+from mirror_core.drift import drift
 
 
 CONSENT_VERSION = 2  # bumped when Mirror started reading Cursor chats, so everyone is asked again
@@ -143,7 +144,7 @@ def cmd_day(args):
         for m in missing:
             print("Note: " + m)
         return 0
-    print(day_text(d, all_days[d], all_days, missing))
+    print(day_text(d, all_days[d], all_days, missing, limit_at=_limit_at()))
     if sys.stdin.isatty() and not args.no_feedback:
         print("")
         ans = input("Does this match how your day felt? [y]es / [n]o / [p]artly / [s]kip: ").strip().lower()[:1]
@@ -165,7 +166,8 @@ def cmd_week(args):
         _quiz_hold()
         return 0
     end = _pick_day(args, all_days)
-    print(week_text(all_days, end))
+    window = {end - timedelta(days=i) for i in range(7)}
+    print(week_text(all_days, end, drift=drift(turns, actions, args.quick_seconds, dates=window), limit_at=_limit_at()))
     return 0
 
 
@@ -184,7 +186,7 @@ def cmd_report(args):
     coverage = [{"tool": v["tool"], "first": min(v["dates"]).isoformat(), "last": max(v["dates"]).isoformat(),
                  "days": len(v["dates"]), "messages": v["messages"]} for v in cov.values() if v["dates"]]
     quiz = _quiz_due(all_days)
-    from mirror_core import guess
+    from mirror_core import guess, limit
     just = None
     if quiz:
         guess.mark_asked(all_days)  # never the quiz and the weekly guess on the same open
@@ -194,7 +196,8 @@ def cmd_report(args):
             v = guess.ask(c)
             if v is not None:
                 just = dict(c, guess=v)
-    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz, guess=guess.for_report(just))
+    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz, drift=drift(turns, actions, args.quick_seconds),
+          limit=limit.report_data(), guess=guess.for_report(just))
     if quiz:
         store.set_quiz("shown")  # the quiz is in this page only; Mirror keeps no copy of the guesses
     try:
@@ -318,6 +321,27 @@ def cmd_guess(args):
         print(f"Weekly guess {args.action}.")
     else:
         print(guess.status())
+
+
+def _limit_at():
+    """The evening limit you set, if it is on, for the day and week views."""
+    from mirror_core import limit
+    st = limit.load()
+    return st.get("at") if st.get("enabled") else None
+
+
+def cmd_limit(args):
+    from mirror_core import limit, nudge
+    if args.action == "set":
+        print(nudge.localize(limit.set_time(args.value or "")))
+    elif args.action in ("on", "off"):
+        limit.set_enabled(args.action == "on")
+        print(nudge.localize(limit.status()))
+    elif args.action == "stop":
+        print(nudge.localize(limit.stop()))
+    else:
+        print(nudge.localize(limit.status()))
+        print("Mirror is at: " + str(Path(__file__).resolve()))
     return 0
 
 
@@ -367,14 +391,18 @@ def main(argv=None):
     wl.add_argument("value", nargs="?", help="with a setting: its new value, e.g. 'welcome when start-of-day'")
     gs = sub.add_parser("guess", help="the one question before a new week's report: on/off, status")
     gs.add_argument("action", nargs="?", default="status", choices=["on", "off", "status"])
+    lm = sub.add_parser("limit", help="the evening limit: a time to stop working with AI (set, on, off, stop, status)")
+    lm.add_argument("action", nargs="?", default="status", choices=["set", "on", "off", "stop", "status"])
+    lm.add_argument("value", nargs="?", help="with set: a time on the 24-hour clock, e.g. 19:00")
     sub.add_parser("forget", help="delete everything Mirror stored")
     args = p.parse_args(argv)
     if not args.cmd:
         p.print_help()
         return 0
-    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome", "guess"):
+    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome", "guess", "limit"):
         return {"explain": cmd_explain, "forget": cmd_forget, "share-card": cmd_share,
-                "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome, "guess": cmd_guess}[args.cmd](args)
+                "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome, "guess": cmd_guess,
+                "limit": cmd_limit}[args.cmd](args)
     if args.cmd == "sources":
         return cmd_sources(args) or 0
     if args.cmd == "doctor":

@@ -108,6 +108,12 @@ If you already work in Claude Code or Codex, install Mirror as a skill and just 
 
 Restart the tool after installing. The skill asks your permission first and tells you that what Mirror prints will appear in the chat, so your AI provider sees the numbers (never your messages). If you would rather keep everything local, run it in a terminal as above.
 
+## Time with AI and an evening limit
+
+The report shows how long and how late you worked with AI over the last 7 days: active time, first and last activity, and nights with activity between midnight and 05:00. `week` shows the same facts.
+
+Optional: set a time to stop, with `python3 mirror.py limit set 19:00`, or `/mirror:limit 19:00` in Claude Code (`$mirror:limit` in Codex). The first message you send after that time is held once, with the time. Enter sends it, and `/mirror:stop` notes that you stopped. Mirror never stops you: it shows you, in the report, how many evenings you went past your limit and what you did each time. `python3 mirror.py limit off` turns it off.
+
 ## The four numbers
 
 1. **Challenge rate:** how often you push back or ask a question, against how often you approve.
@@ -139,4 +145,4 @@ The tests use synthetic logs only (`tests/make_fixtures.py`). There are no real 
 
 ## Status
 
-Version 0.3.1, exploratory (see the [changelog](CHANGELOG.md)). Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.
+Version 0.5.0, exploratory (see the [changelog](CHANGELOG.md)). Licence: [PolyForm Noncommercial 1.0.0](LICENSE): free for personal, educational and other noncommercial use; commercial use needs the author's permission.
