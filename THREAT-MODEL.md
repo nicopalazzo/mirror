@@ -20,6 +20,8 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | **Other apps or people on the computer** | They read what Mirror stored | Mirror stores numbers and your notes in `~/.mirror`, and report pages in `~/Mirror`. `forget` deletes both (only Mirror's own `mirror-*.html` files in `~/Mirror`). Malware that already has your user rights could read your logs directly, so Mirror adds little to that risk. |
 | **Whoever you share numbers with** | Numbers identify you or reveal habits | The share card holds numbers only, notes are excluded unless you add `--include-note`, and Mirror sends nothing by itself. Sending is your decision. |
 | **Your employer or a client** | Your logs contain their confidential information | Mirror reads logs locally and keeps no message text. Check your employer's rules before running it on a work computer. |
+| **A facilitator collecting team cards** (team mirror) | Holds everyone's card in one folder, so could look at single cards or guess who sent which | A team card (`share-card --json`) carries five rounded numbers, a period length, an ISO week and the Mirror version: no name, user, host, tool, project hash, session id, day, note or message count. `team` refuses under 5 cards, hides any number with fewer than 5 values, shows only the median and middle half, and never the lowest or highest card, a rank or a list. File names are never printed or written. The script in `docs/TEAM-RETRO.md` asks the facilitator to share the summary, not the folder, and to delete the cards after the retro. Mirror cannot stop someone opening a card file by hand. |
+| **A manager asking everyone for their card** (team mirror) | Cards used to judge or rank people, or people feeling they cannot say no | Each person makes and hands over their own card; Mirror sends nothing. `explain team`, the team page and the retro script all say the numbers are not for judging anyone. No per-person view exists: `--mine` shows your own placement only on your computer and writes nothing. Mirror cannot stop pressure to hand over a card; saying no is the protection, and the script says a card is optional. |
 
 ## The protections, and how to check each one
 
@@ -33,6 +35,11 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | The HTML report cannot load anything from the internet | The report carries a strict content policy; a test checks it and allows one external URL only: the feedback link in the footer, a plain link that opens only if the reader clicks it |
 | Works with the network switched off | On macOS: `sandbox-exec -p '(version 1)(allow default)(deny network*)' python3 mirror.py day --yes` |
 | First-run consent, and full removal | `mirror.py forget`; test `test_forget` |
+| A team card holds numbers only, and a card with any extra field (a name, say) is refused | Tests `test_card_from_fixtures_and_consent`, `test_validation_rejects_unwanted_data` |
+| `team` refuses under 5 cards and writes nothing; a number with fewer than 5 values is hidden | Tests `test_four_cards_write_nothing`, `test_missing_number_is_suppressed` |
+| The team page, text and summary show medians and middle halves only: no lowest or highest card, no names, no file names, nothing loaded from the internet | Test `test_outputs_only_ranges_and_skips_names` |
+| `team --mine` prints your placement in the terminal and writes no file | Test `test_mine_folder_and_summary_write_nothing` |
+| `forget` also removes `mirror-team-*` files in `~/Mirror` | Test `test_forget_team_reports_only` |
 
 ## The nudge plugin (Claude Code)
 
@@ -72,6 +79,8 @@ A hook runs with your user rights outside Claude Code's sandbox, on every prompt
 - **The report page contains your notes** (it shows them back to you). Send the share card, not the report file.
 - **The launchers are unsigned.** Your computer warns you the first time; that is expected and the only way to know they are unmodified is to compare with the GitHub repo.
 - **The share card is your choice.** If you paste it into a chat or send it, whoever receives it sees those numbers.
+- **A team range can still point at someone.** With 5 cards, the median and the edges of the middle half are each one person's (rounded) number. People who know each other's work may guess. Mirror cannot tell whether one person sent two cards or edited a card.
+- **Team numbers rest on rough labels** (86% agreement for question-or-pushback against the rest, on one person's messages), and comparing people adds that error up. Do not use the team page to judge anyone.
 
 ## Consent changes when the reading changes
 

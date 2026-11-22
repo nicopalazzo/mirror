@@ -6,6 +6,14 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 
 ## [Unreleased]
 
+### Added
+
+- Team mirror, opt-in and numbers only. `mirror.py share-card --json` prints a card with five rounded numbers from the last 28 days (`--days` to change): share of messages that ask a question or push back, share of approvals within 15 s of a file change, AI actions per message, longest run of file changes, active minutes per active day. Plus the period length, the ISO week and the Mirror version. No name, tool, project, session id, day or note. Each person hands over their own card; Mirror sends nothing.
+- `mirror.py team <folder>` reads cards someone collected by hand. It refuses under 5 cards, hides any number with fewer than 5 values, and shows only the median and the middle half (25th to 75th percentile): never the lowest or highest card, a rank or who sent which. It writes an offline page, a text version and a summary in `~/Mirror` (`forget` removes them). `team <folder or summary> --mine my-card.json` shows where your own card sits, in your terminal only, and writes nothing.
+- `mirror.py explain team`, with what the ranges cannot tell you.
+- `docs/TEAM-RETRO.md`: a one-page facilitator script for an "AI habits retro", saying the cards are not for evaluation.
+- Threat model: a facilitator and a manager asking for cards as new actors, with their protections and limits.
+
 ## [0.4.1] - 2026-10-24
 
 Command-line tool and both plugins (Claude Code and Codex) at 0.4.1.

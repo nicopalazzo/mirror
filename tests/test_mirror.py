@@ -876,3 +876,166 @@ class ClaudePlugin(unittest.TestCase):
         text = (self.P / "skills" / "report" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("mirror.py\" report --open", text)
         self.assertNotIn("--yes", text)  # the first-run agreement stays the user's decision
+
+
+class TeamMirror(Base):
+    def card(self, value=40):
+        from mirror_core.team import build_card, NUMBER_KEYS
+        card = build_card({}, self.base.date())
+        card['numbers'] = dict.fromkeys(NUMBER_KEYS, value)
+        return card
+
+    def folder(self, values=(3, 30, 35, 40, 50, 96)):
+        folder = self.root / 'cards'
+        folder.mkdir(exist_ok=True)
+        (folder / 'cards.json').write_text(json.dumps([self.card(v) for v in values]), encoding='utf-8')
+        return folder
+
+    def test_card_from_fixtures_and_consent(self):
+        from mirror_core.team import validate_card
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code, out = run_cli(['share-card', '--json', '--yes', '--day', self.base.date().isoformat()], self.env)
+        self.assertEqual(code, 0)
+        card = json.loads(out)
+        self.assertEqual(set(card), {'kind', 'card_version', 'mirror_version', 'period', 'numbers'})
+        self.assertEqual(validate_card(card), card)
+        for forbidden in ('sess-1', 'chat-1', 'claude-test', 'codex-test', 'Claude', 'Cursor', 'note', self.base.date().isoformat(), str(self.root)):
+            self.assertNotIn(forbidden, out)
+        self.assertIn('Numbers only', err.getvalue())
+
+    def test_refused_consent_reads_no_logs(self):
+        with mock.patch('mirror._consent', return_value=False), mock.patch('mirror._load') as read:
+            code, out = run_cli(['share-card', '--json'], self.env)
+        self.assertEqual((code, out), (1, ''))
+        read.assert_not_called()
+
+    def test_default_quick_seconds_and_since(self):
+        with mock.patch('mirror.by_day', wraps=by_day) as daily, mock.patch('mirror._load', return_value=([], [], {}, [], ())) as read, contextlib.redirect_stderr(io.StringIO()):
+            code, out = run_cli(['share-card', '--json', '--yes', '--days', '90', '--quick-seconds', '99'], self.env)
+        self.assertEqual(code, 0)
+        self.assertEqual(read.call_args[0][0].since, 90)
+        self.assertEqual(daily.call_args[0][2], 15)
+        self.assertEqual(json.loads(out)['period']['days'], 90)
+
+    def test_validation_rejects_unwanted_data(self):
+        from mirror_core.team import validate_card
+        for mutate in (
+            lambda c: c.update(name='Alice'),
+            lambda c: c['numbers'].update(name=1),
+            lambda c: c['numbers'].update(question_or_pushback_pct=True),
+            lambda c: c['numbers'].update(question_or_pushback_pct=101),
+            lambda c: c['numbers'].update(question_or_pushback_pct=float('nan')),
+            lambda c: c['numbers'].update(actions_per_message=float('inf')),
+            lambda c: c.update(kind='other'),
+            lambda c: c.update(card_version=True),
+            lambda c: c['period'].update(name='Alice'),
+        ):
+            c = self.card()
+            mutate(c)
+            self.assertIsNone(validate_card(c))
+
+    def test_pooled_thresholds_and_period(self):
+        from mirror_core.team import build_card
+        end = self.base.date()
+        def stats(msgs, qp, acts, minutes, approvals, quick, run):
+            return {'_counts': {'engaged': msgs, 'question': qp, 'challenge': 0},
+                    'ai_actions': acts, 'active_minutes': minutes,
+                    'idx': {'approvals_after_writes': approvals, 'quick_approvals': quick, 'longest_write_run': run}}
+        days = {end: stats(15, 5, 20, 12, 3, 1, 4), end-timedelta(days=1): stats(5, 3, 10, 15, 2, 1, 6),
+                end-timedelta(days=28): stats(100, 100, 100, 100, 100, 100, 100)}
+        nums = build_card(days, end)['numbers']
+        self.assertEqual(list(nums.values()), [40, 40, 1.5, 6, 15])
+        nums = build_card(days, end, 1)['numbers']
+        self.assertEqual(list(nums.values()), [None, None, None, 4, 10])
+        self.assertEqual(build_card({}, end)['numbers']['active_minutes_per_day'], None)
+
+    def test_four_cards_write_nothing(self):
+        code, out = run_cli(['team', str(self.folder((20, 30, 40, 50)))], self.env)
+        self.assertEqual(code, 2)
+        self.assertIn('this folder has 4', out)
+        self.assertFalse((self.root / 'home').exists())
+
+    def test_outputs_only_ranges_and_skips_names(self):
+        from mirror_core.team import validate_summary
+        folder = self.folder()
+        (folder / 'private.json').write_text('{"name":"Alice"}', encoding='utf-8')
+        code, out = run_cli(['team', str(folder)], self.env)
+        self.assertEqual(code, 0)
+        self.assertIn('1 files skipped', out)
+        files = list((self.root / 'home' / 'reports').iterdir())
+        self.assertEqual(len(files), 3)
+        for content in [out] + [p.read_text(encoding='utf-8') for p in files]:
+            self.assertNotIn('Alice', content)
+            self.assertNotIn('96', content)
+            self.assertNotRegex(content, r'(?<![\d.])3%')
+            self.assertIn('median', content)
+        page = next(p for p in files if p.suffix == '.html').read_text(encoding='utf-8')
+        self.assertIn('Content-Security-Policy', page)
+        self.assertNotIn('http://', page)
+        self.assertNotIn('https://', page)
+        self.assertNotIn('<script', page)
+        self.assertIn('middle half', page)
+        summary = json.loads(next(p for p in files if p.suffix == '.json').read_text())
+        self.assertEqual(validate_summary(summary), summary)
+        self.assertEqual(summary['numbers']['question_or_pushback_pct']['median'], 38)
+
+    def test_missing_number_is_suppressed(self):
+        from mirror_core.team import summarize, team_text
+        cards = [self.card() for _ in range(6)]
+        for c in cards[:2]:
+            c['numbers']['quick_approval_pct'] = None
+        summary = summarize(cards)
+        self.assertEqual(summary['numbers']['quick_approval_pct'], {'n': 4, 'too_few': True})
+        line = next(l for l in team_text(summary).splitlines() if l.startswith('Approvals'))
+        self.assertIn('too few cards', line)
+        self.assertNotIn('median', line)
+
+    def test_mine_folder_and_summary_write_nothing(self):
+        from mirror_core.team import summarize
+        folder = self.folder()
+        mine = self.root / 'mine.json'
+        mine.write_text(json.dumps(self.card()), encoding='utf-8')
+        summary = self.root / 'summary.json'
+        summary.write_text(json.dumps(summarize([self.card() for _ in range(5)])), encoding='utf-8')
+        before = sorted(self.root.rglob('*'))
+        for path in (folder, summary):
+            code, out = run_cli(['team', str(path), '--mine', str(mine)], self.env)
+            self.assertEqual(code, 0)
+            self.assertIn('Yours is inside', out)
+            self.assertIn('Mirror wrote nothing and sent nothing', out)
+        self.assertEqual(before, sorted(self.root.rglob('*')))
+        code, out = run_cli(['team', str(summary)], self.env)
+        self.assertEqual(code, 0)
+        self.assertIn('Team mirror', out)
+        self.assertEqual(before, sorted(self.root.rglob('*')))
+
+    def test_summary_validation(self):
+        from mirror_core.team import summarize, validate_summary
+        for mutate in (lambda s: s.update(name='Alice'), lambda s: s.update(cards=True),
+                       lambda s: s.update(weeks=['<script>']),
+                       lambda s: s['numbers']['quick_approval_pct'].update(name='Alice'),
+                       lambda s: s['numbers']['quick_approval_pct'].update(n=4),
+                       lambda s: s['numbers']['quick_approval_pct'].update(p25=90),
+                       lambda s: s['numbers']['quick_approval_pct'].update(median=True)):
+            summary = summarize([self.card() for _ in range(5)])
+            mutate(summary)
+            self.assertIsNone(validate_summary(summary))
+
+    def test_load_cards_invalid_oversize_and_nested(self):
+        from mirror_core.team import load_cards
+        folder = self.folder()
+        (folder / 'bad.json').write_text('{', encoding='utf-8')
+        (folder / 'large.json').write_text(' ' * (65536 + 1), encoding='utf-8')
+        (folder / 'nested').mkdir()
+        (folder / 'nested' / 'card.json').write_text(json.dumps(self.card()), encoding='utf-8')
+        cards, skipped = load_cards(folder)
+        self.assertEqual((len(cards), skipped), (6, 2))
+
+    def test_forget_team_reports_only(self):
+        reports = self.root / 'reports'
+        reports.mkdir()
+        for name in ('mirror-team-test.html', 'mirror-team-test.txt', 'mirror-team-test.json', 'keep.txt', 'keep.json'):
+            (reports / name).write_text('test', encoding='utf-8')
+        run_cli(['forget'], dict(self.env, MIRROR_REPORTS=str(reports)))
+        self.assertEqual(sorted(p.name for p in reports.iterdir()), ['keep.json', 'keep.txt'])
