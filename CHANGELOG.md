@@ -6,6 +6,13 @@ From 0.3.1 the command-line tool (`mirror_core.__version__`) and both plugins (`
 
 ## [Unreleased]
 
+### Added
+
+- Numbers-only ledger: each run of `day`, `week`, `report` or `feedback` saves each day's numbers to `~/.mirror/days.jsonl` (respects `MIRROR_HOME`), with the labelling-rules version (`RULES_VERSION` in `classify.py`) and the quick-approval line each day was counted with. Days still in the logs are recomputed; days the logs no longer hold come from the ledger, so the 26-week chart survives Claude Code's 30-day cleanup. When the logs hold less for a day than the ledger already counted, the fuller day is kept. Only an allowlist of count fields is written; no message text, project hashes or session ids. Mirror says so once when it creates the file; the first-run notice and `sources` list it; `forget` deletes it. The report says how many days come from the ledger, and how many were counted with other rules.
+- Markers: `mirror.py mark "<your words>"` (today, or `--day YYYY-MM-DD`), `mark list`, `mark remove N`, stored in `~/.mirror/marks.jsonl`. The report shows the four numbers in the 4 weeks before each marker next to the 4 weeks from it, with your usual weekly range, and the line "Before and after is not cause and effect: many things change at once." No verdict. Markers are never in the share card. `explain marks` gives its "cannot tell you".
+- `mirror.py ledger off|on|status|forget`: off stops writing and reading `days.jsonl` (reports fall back to the days the logs still hold) and keeps the file; the setting is `"ledger": "off"` in `config.json`. `ledger forget` deletes `days.jsonl` only; `forget` still deletes everything.
+- No consent version bump: Mirror reads nothing new, and both files sit in the folder the first-run notice already names. See `THREAT-MODEL.md`.
+
 ## [0.4.1] - 2026-10-24
 
 Command-line tool and both plugins (Claude Code and Codex) at 0.4.1.

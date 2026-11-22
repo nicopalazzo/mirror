@@ -43,7 +43,7 @@ svg{display:block;width:100%;height:auto}svg text{fill:var(--ink2);font-size:12p
 #tip{position:fixed;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,.2);opacity:0;z-index:20;max-width:280px}
 details{margin-top:14px}summary{cursor:pointer;font-weight:600;font-size:16px;min-height:44px;display:flex;align-items:center}
 table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
-.tw{overflow:auto;max-height:300px}
+.tw{overflow:auto;max-height:300px}#ba .tw{max-height:none}
 textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
 @media (min-width:521px){.tile .val{font-size:40px}.card{padding:16px 20px}}
 @media (hover:hover) and (pointer:fine){button{min-height:34px;padding:5px 12px}summary{min-height:32px}}
@@ -75,6 +75,9 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 <div class="card" style="margin-top:14px"><div class="hd"><div><h2>Week by week</h2><p class="sub" id="heroSub"></p></div><button class="tbl" data-for="hero" type="button" aria-pressed="false">Table</button></div>
 <div class="ctl" id="metricTabs" role="group" aria-label="Metric"></div><div class="chart" id="hero"></div><p class="note" id="heroNote"></p></div>
 
+<div class="card" id="baBox" style="margin-top:14px" hidden><h2>Before and after a change you named</h2><p class="sub">Your markers, from <code>mirror.py mark</code>: the 4 weeks before each one (Before) next to the 4 weeks from that day on (After), with your usual range for one week.</p><div id="ba"></div>
+<p class="note"><b>Before and after is not cause and effect: many things change at once.</b> <span id="baCannot"></span></p></div>
+
 <details id="more"><summary>More charts: mix, hours, scatter, every day</summary><div class="grid two" style="margin-top:8px">
 <div class="card"><div class="hd"><div><h2>What I said, as a share</h2><p class="sub">Weekly mix of message types, as shares so busy weeks do not dominate. Labels come from simple rules and are sometimes wrong.</p></div><button class="tbl" data-for="mix" type="button" aria-pressed="false">Table</button></div><div class="legend" id="mixLeg"></div><div class="chart" id="mix"></div></div>
 <div class="card"><div class="hd"><div><h2>When I send messages</h2><p class="sub" id="heatSub"></p></div><button class="tbl" data-for="heat" type="button" aria-pressed="false">Table</button></div><div class="ctl" id="heatTabs" role="group" aria-label="Heatmap metric"></div><div class="chart" id="heat"></div><p class="note" id="heatNote"></p></div>
@@ -83,7 +86,7 @@ textarea{width:100%;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;backgrou
 </div></details>
 
 <details><summary>Details: what is covered, tokens, every day</summary>
-<div class="card" style="margin-top:8px"><p class="note warn" style="margin-top:0"><b>Read this first.</b> Mirror can only count what it can read, so this shows what is in these numbers and what is not.</p><div class="tw" style="margin-top:8px"><table id="covtab"></table></div><p class="note warn" id="notread"></p>
+<div class="card" style="margin-top:8px"><p class="note warn" style="margin-top:0"><b>Read this first.</b> Mirror can only count what it can read, so this shows what is in these numbers and what is not.</p><div class="tw" style="margin-top:8px"><table id="covtab"></table></div><p class="note warn" id="notread"></p><p class="note" id="ledgerNote" hidden></p>
 <h3 style="font-size:15px;margin:16px 0 4px">Tokens</h3><div class="tw"><table id="tok"></table></div><p class="note">Counts the tools record themselves. Cached means context the tool re-read, not new writing. Not every tool records tokens.</p>
 <h3 style="font-size:15px;margin:16px 0 4px">Day by day</h3><div class="tw"><table id="daytab"></table></div>
 <p class="note"><b>How "usual" is set.</b> The line and band come from your first 12 weeks with enough messages (process-behavior method: the average, plus or minus 2.66 times the average week-to-week change). A point outside the band, or 8 weeks in a row on one side of the line, is more than ordinary wobble. It says something changed, not whether that is good. They appear once you have 6 such weeks.</p></div></details>
@@ -252,6 +255,18 @@ function card(){const inc=$('incnote').checked;const last=D.feedback.slice(-7).m
 $('card').value=card();$('incnote').onchange=()=>{$('card').value=card()};
 $('copy').onclick=()=>{const tx=$('card');tx.select();let ok=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tx.value);ok=true}else{ok=document.execCommand('copy')}}catch(e){try{ok=document.execCommand('copy')}catch(e2){}}$('copied').textContent=ok?'Copied.':'Select the text above and copy it yourself.'};
 $('fb').innerHTML=D.feedback.length?'<tr><th>Day</th><th>Did it match?</th><th>Your note</th></tr>'+D.feedback.map(x=>`<tr><td>${esc(x.day)}</td><td>${esc(x.match)}</td><td>${esc(x.note||'')}</td></tr>`).join(''):'<tr><td>None yet. Answer the question at the end of the day summary.</td></tr>';
+// ---------- before and after a marker (two periods side by side, no verdict) ----------
+(function(){const MK=(D.marks||[]).slice().sort((a,b)=>a.day<b.day?-1:1);if(!MK.length)return;$('baBox').hidden=false;$('baCannot').textContent='Cannot tell you: '+D.indexes.marks.cannot;
+ const FIRST=t(ALL[0].date),W=28;
+ const win=(lo,hi)=>{lo=Math.max(lo,FIRST);hi=Math.min(hi,LAST);const n=hi<lo?0:Math.round((hi-lo)/DAY)+1;return{n,days:ALL.filter(d=>t(d.date)>=lo&&t(d.date)<=hi)}};
+ const val=(m,w)=>!w.days.length?null:m.key==='focus'?sum(w.days,d=>d.active_minutes)/w.n:m.fn(w.days);
+ const cell=(m,w)=>!w.n?'no data yet':!w.days.length?'no activity':val(m,w)===null?'too few messages':show(m,val(m,w));
+ const span=(w,lab)=>`${lab}: ${w.days.length} active day${w.days.length===1?'':'s'}, ${sum(w.days,d=>d.prompts).toLocaleString('en-GB')} messages`+(w.n&&w.n<W?` (only ${w.n} calendar days so far)`:'');
+ $('ba').innerHTML=MK.map(k=>{const m0=t(k.day),b=win(m0-W*DAY,m0-DAY),a=win(m0,m0+(W-1)*DAY);
+  const rows=METRICS.map(m=>[m.label,cell(m,b),cell(m,a),m.has?show(m,m.lo)+' to '+show(m,m.hi):'not set yet']);
+  return `<h3 style="font-size:16px;margin:16px 0 4px">${esc(fmt(k.day))}: ${esc(k.note)}</h3>`+tbl(['','Before','After','Usual week'],rows)+`<p class="note" style="margin-top:4px">${esc(span(b,'Before'))}. ${esc(span(a,'After'))}.</p>`}).join('')})();
+(function(){const L=D.ledger||{};if(!L.days)return;const el=$('ledgerNote');el.hidden=false;
+ el.textContent=`${L.days} day${L.days===1?'':'s'} here, from ${fmt(L.first)}, come from Mirror's own numbers-only record (days.jsonl in its settings folder), kept after the tools deleted or stopped reading those logs.`+(L.other_rules?` ${L.other_rules} of them were counted with older labelling rules or a different quick-approval line, so they may not compare exactly with the rest.`:'')})();
 // ---------- paint ----------
 const paintAll=()=>Object.keys(CH).forEach(paint);paintAll();$('more').addEventListener('toggle',()=>{if($('more').open)paintAll()});
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(paintAll,150)});

@@ -29,6 +29,13 @@ INDEXES = {
         "ask": "Which switch today pulled me away from what I meant to finish?",
         "practice": "Write down the one thing you are finishing before you open a second session.",
     },
+    "marks": {
+        "title": "Before and after a change you named",
+        "measures": "Your four numbers in the 4 weeks before a day you marked with `mirror.py mark`, next to the 4 weeks from that day on, with your usual weekly range beside them.",
+        "cannot": "It cannot tell you that your change caused the difference. Many things change at once: the work, the project, the season, the AI tools themselves. Four weeks can also be too short to tell a real shift from an ordinary swing.",
+        "ask": "What else changed around the day I marked?",
+        "practice": "Mark the day you make a change, not weeks later, and keep the words short enough to recognise.",
+    },
 }
 
 DISCLAIMER = (

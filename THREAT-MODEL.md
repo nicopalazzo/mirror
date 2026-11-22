@@ -8,7 +8,8 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 |---|---|
 | **Your session logs** (Claude Code, Codex, Cursor) | High. They hold your messages, pasted secrets, client and colleague names, and other people's information. |
 | **Numbers Mirror derives** (counts, percentages, active minutes) | Low. |
-| **Your notes** (the optional answer to "does this match your day?") | Medium. They are your own words. |
+| **Your notes** (the optional answer to "does this match your day?") and **markers** (`mirror.py mark`) | Medium. They are your own words. |
+| **The numbers-only ledger** (`~/.mirror/days.jsonl`) | Low to medium. Numbers only, but a longer history of your habits (hours of the day, active minutes) than the logs keep. |
 
 ## Who Mirror is designed against
 
@@ -33,6 +34,11 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 | The HTML report cannot load anything from the internet | The report carries a strict content policy; a test checks it and allows one external URL only: the feedback link in the footer, a plain link that opens only if the reader clicks it |
 | Works with the network switched off | On macOS: `sandbox-exec -p '(version 1)(allow default)(deny network*)' python3 mirror.py day --yes` |
 | First-run consent, and full removal | `mirror.py forget`; test `test_forget` |
+| The ledger holds an allowlist of count fields only: no message text, no project hashes, no session ids, no model names | Test `test_ledger_holds_numbers_only` |
+| Days still in the logs are recomputed; the ledger only fills days the logs lost, and says which rules counted them | Tests `test_days_still_in_the_logs_are_recomputed`, `test_ledger_keeps_days_the_logs_lost` |
+| Markers are shown back in your report but never in the share card | Test `test_markers_never_in_share_card` |
+| `forget` deletes the ledger and the markers | Test `test_forget_deletes_ledger_and_markers` |
+| `ledger off` stops writing and reading the ledger (reports use log days only); `ledger forget` deletes that file only | Test `test_ledger_off_stops_reading_and_writing_and_forget_deletes_only_it` |
 
 ## The nudge plugin (Claude Code)
 
@@ -69,13 +75,21 @@ A hook runs with your user rights outside Claude Code's sandbox, on every prompt
 - **Windows is covered by automated tests, not by an OS-level network block.** The macOS command above is the only enforcement check we have; on Windows and Linux you rely on the code and the tests.
 - **Labels are rough** (about 70% agreement on one person's messages). Do not use Mirror's output to judge a person, and do not let anyone else use it to judge you.
 - **Cloud sync.** `~/Mirror` is deliberately outside Documents and Desktop, which iCloud and OneDrive often sync. If you have set up sync for your whole home folder, the reports will sync too.
-- **The report page contains your notes** (it shows them back to you). Send the share card, not the report file.
+- **The report page contains your notes and markers** (it shows them back to you). Send the share card, not the report file.
 - **The launchers are unsigned.** Your computer warns you the first time; that is expected and the only way to know they are unmodified is to compare with the GitHub repo.
 - **The share card is your choice.** If you paste it into a chat or send it, whoever receives it sees those numbers.
 
 ## Consent changes when the reading changes
 
 The first-run notice lists every folder Mirror reads. When Mirror started reading Cursor chats, the consent version went from 1 to 2, so everyone who had agreed before is asked again. Test `test_untimed_approval_is_not_counted_as_quick` and `test_no_text_kept` cover the Cursor reader.
+
+## The ledger and markers (stored, not read)
+
+The ledger (`~/.mirror/days.jsonl`) and markers (`~/.mirror/marks.jsonl`) add two stored files and no new reading. The consent version stays at 2, for three reasons: the consent rule is tied to what Mirror reads, and that is unchanged; both files sit in `~/.mirror`, the folder the notice already names; and the ledger holds the same per-day numbers every report page already stores in `~/Mirror`. The notice now names both, and Mirror prints one line the first time it creates the ledger, so people who agreed before are told too.
+
+What it does not cover:
+- **A longer history on disk.** Before, Claude Code's cleanup limited how far back anyone with access to your account could see your habits. The ledger keeps every day Mirror has counted until you run `forget` or `ledger forget`. `ledger off` stops it growing but keeps the file. Deleting a session from a tool's logs does not remove its day from the ledger.
+- **Markers are free text.** Mirror cannot stop you from typing a name or a secret into one. They stay on this computer and out of the share card, but they appear in your report page.
 
 ## Rule for changing Mirror
 

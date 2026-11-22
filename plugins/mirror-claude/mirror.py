@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from mirror_core import __version__, store
+from mirror_core import __version__, ledger, marks, store
 from mirror_core.explain import INDEXES, DISCLAIMER
 from mirror_core.indexes import by_day, QUICK_SECONDS
 from mirror_core.readers import default_dirs, read_claude, read_codex, read_cursor, inventory
@@ -81,7 +81,8 @@ def _consent(args, roots):
     print("                 " + str(codex_root / "sessions") + "  (Codex sessions)")
     print("                 " + str(cursor_root / "projects" / "*" / "agent-transcripts") + "  (Cursor chats)")
     print("  It never opens anything else in those folders (no credentials, no settings).")
-    print("  It never sends anything anywhere. It writes only to: " + str(store.home()) + "  (settings, your notes)")
+    print("  It never sends anything anywhere. It writes only to: " + str(store.home()) + "  (settings, your notes and markers,")
+    print("                                                        a numbers-only record of each day)")
     print("                                                        " + str(store.reports_dir()) + "  (report pages)")
     print("  Remove everything any time with:  mirror.py forget")
     if args.yes:
@@ -98,6 +99,15 @@ def _consent(args, roots):
         cfg["consented_at"] = datetime.now().isoformat(timespec="seconds")
         store.save_config(cfg)
     return ok
+
+
+def _days(args, turns, actions):
+    """Per-day numbers from the logs, merged with Mirror's numbers-only record of earlier days, which is then saved."""
+    all_days, info = ledger.update(by_day(turns, actions, args.quick_seconds), args.quick_seconds)
+    if info.get("created"):
+        print("Mirror now keeps a numbers-only record of each day in " + str(ledger.path()) +
+              " (counts, never your messages), so your history outlasts the tools' log cleanup. `mirror.py forget` deletes it.")
+    return all_days, info
 
 
 def _quiz_due(all_days):
@@ -126,12 +136,17 @@ def cmd_sources(args):
     for name, v in inventory(claude_root, codex_root, cursor_root).items():
         when = datetime.fromtimestamp(v["newest"]).strftime("%Y-%m-%d") if v["newest"] else "-"
         print(f"  {name:<12} {v['files']:>4} session files, {v['bytes'] / 1e6:6.1f} MB, newest {when}\n               {v['path']}")
+    kept = ledger.read() if ledger.enabled() else {}
+    if not ledger.enabled():
+        print(f"  {'Mirror':<12} numbers-only record is off (mirror.py ledger on)")
+    elif kept:
+        print(f"  {'Mirror':<12} {len(kept):>4} days in its own numbers-only record, from {min(kept).isoformat()}\n               {ledger.path()}")
     print("\nNote: Claude Code deletes old sessions after about 30 days unless you change `cleanupPeriodDays` in its settings.")
 
 
 def cmd_day(args):
     turns, actions, tokens, missing, roots = _load(args)
-    all_days = by_day(turns, actions, args.quick_seconds)
+    all_days, ledger_info = _days(args, turns, actions)
     if _quiz_due(all_days):
         _quiz_hold()
         return 0
@@ -160,7 +175,7 @@ def cmd_day(args):
 
 def cmd_week(args):
     turns, actions, tokens, missing, roots = _load(args)
-    all_days = by_day(turns, actions, args.quick_seconds)
+    all_days, ledger_info = _days(args, turns, actions)
     if _quiz_due(all_days):
         _quiz_hold()
         return 0
@@ -172,7 +187,7 @@ def cmd_week(args):
 def cmd_report(args):
     from mirror_core.render_html import build
     turns, actions, tokens, missing, roots = _load(args)
-    all_days = by_day(turns, actions, args.quick_seconds)
+    all_days, ledger_info = _days(args, turns, actions)
     out = store.reports_dir() / f"mirror-{date.today().isoformat()}.html"
     cov = {}
     for t in turns:
@@ -184,7 +199,7 @@ def cmd_report(args):
     coverage = [{"tool": v["tool"], "first": min(v["dates"]).isoformat(), "last": max(v["dates"]).isoformat(),
                  "days": len(v["dates"]), "messages": v["messages"]} for v in cov.values() if v["dates"]]
     quiz = _quiz_due(all_days)
-    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz)
+    build(all_days, store.read_feedback(), tokens, out, coverage, quiz=quiz, marks=marks.read(), ledger=ledger_info)
     if quiz:
         store.set_quiz("shown")  # the quiz is in this page only; Mirror keeps no copy of the guesses
     try:
@@ -252,7 +267,7 @@ def cmd_doctor(args):
 def cmd_feedback(args):
     """Non-interactive version of the question at the end of `day`, for use from an assistant."""
     turns, actions, tokens, missing, roots = _load(args)
-    all_days = by_day(turns, actions, args.quick_seconds)
+    all_days, ledger_info = _days(args, turns, actions)
     d = _pick_day(args, all_days)
     if d not in all_days:
         print(f"No AI activity found for {d.isoformat()}, so there is nothing to attach the answer to.")
@@ -301,6 +316,65 @@ def cmd_welcome(args):
     return 0
 
 
+def cmd_mark(args):
+    """mark "<your words>" | mark list | mark remove N. Markers are your words: never in the share card."""
+    words = args.words
+    if not words or words == ["list"]:
+        items = marks.read()
+        if not items:
+            print("No markers yet. Add one on the day you change something:  mirror.py mark \"started using a new tool\"")
+        for i, m in enumerate(items, 1):
+            print(f"  {i}. {m['day']}  {m['note']}")
+        if items:
+            print("The report shows your numbers before and after each one. Remove one with:  mirror.py mark remove N")
+        return 0
+    if words[0] == "remove":
+        try:
+            n = int(words[1])
+        except (IndexError, ValueError):
+            print("Say which one, by its number in `mirror.py mark list`:  mirror.py mark remove 2")
+            return 2
+        gone = marks.remove(n)
+        if gone is None:
+            print(f"There is no marker {n}. See them with:  mirror.py mark list")
+            return 2
+        print(f"Removed: {gone['day']}  {gone['note']}")
+        return 0
+    try:
+        d = date.fromisoformat(args.day) if args.day else date.today()
+    except ValueError:
+        print("Use --day YYYY-MM-DD, for example --day 2026-11-02.")
+        return 2
+    try:
+        m = marks.add(d, " ".join(words))
+    except ValueError as e:
+        print(str(e))
+        return 2
+    print(f"Marked {m['day']}: {m['note']}")
+    print("Kept on this computer, never in the share card. The report shows your numbers before and after it.")
+    return 0
+
+
+def cmd_ledger(args):
+    """ledger status | off | on | forget. Off: days.jsonl is neither written nor read; the file stays until you delete it."""
+    if args.action == "off":
+        ledger.set_enabled(False)
+        print("Numbers-only record off: Mirror no longer reads or writes " + str(ledger.path()) + ".")
+        print("Reports now show only the days the tools' logs still hold. The file stays; delete it with:  mirror.py ledger forget")
+    elif args.action == "on":
+        ledger.set_enabled(True)
+        print("Numbers-only record on: each run saves each day's numbers to " + str(ledger.path()) + ".")
+    elif args.action == "forget":
+        print(("Deleted " + str(ledger.path())) if ledger.delete() else "No numbers-only record to delete.")
+        if ledger.enabled():
+            print("It is still on, so the next run starts a new one from the logs. Stop it with:  mirror.py ledger off")
+    else:
+        rows = ledger.read()
+        print("Numbers-only record: " + ("on" if ledger.enabled() else "off") + "  (" + str(ledger.path()) + ")")
+        print(f"{len(rows)} days kept" + (f", from {min(rows).isoformat()} to {max(rows).isoformat()}." if rows else "."))
+    return 0
+
+
 def cmd_forget(args):
     print("Deleted " + str(store.home()) if store.forget() else "Nothing to delete.")
     return 0
@@ -345,13 +419,18 @@ def main(argv=None):
     wl = sub.add_parser("welcome", help="the welcome-back line at the start of a week: on/off, settings, status")
     wl.add_argument("action", nargs="?", default="status", choices=["on", "off", "status", "when", "gap-days", "holdback"])
     wl.add_argument("value", nargs="?", help="with a setting: its new value, e.g. 'welcome when start-of-day'")
+    mk = sub.add_parser("mark", help='mark a change you made: mark "<your words>", mark list, mark remove N')
+    mk.add_argument("words", nargs="*", help='a few words of your own, or "list", or "remove N"')
+    mk.add_argument("--day", help="YYYY-MM-DD (default today)")
+    lg = sub.add_parser("ledger", help="the numbers-only record of each day: status, off, on, forget")
+    lg.add_argument("action", nargs="?", default="status", choices=["status", "off", "on", "forget"])
     sub.add_parser("forget", help="delete everything Mirror stored")
     args = p.parse_args(argv)
     if not args.cmd:
         p.print_help()
         return 0
-    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome"):
-        return {"explain": cmd_explain, "forget": cmd_forget, "share-card": cmd_share,
+    if args.cmd in ("explain", "forget", "share-card", "nudge-hook", "nudge", "welcome", "mark", "ledger"):
+        return {"explain": cmd_explain, "forget": cmd_forget, "share-card": cmd_share, "mark": cmd_mark, "ledger": cmd_ledger,
                 "nudge-hook": cmd_nudge_hook, "nudge": cmd_nudge, "welcome": cmd_welcome}[args.cmd](args)
     if args.cmd == "sources":
         return cmd_sources(args) or 0
