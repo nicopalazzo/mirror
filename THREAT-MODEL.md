@@ -38,13 +38,14 @@ Written for v0.1. It says who Mirror protects against, what each protection is, 
 
 | Protection | How to verify |
 |---|---|
-| The hook reads only the prompt Claude Code passes it; it opens no log file | `mirror_core/nudge.py`, function `on_prompt` |
+| The hook reads only the prompt Claude Code passes it and Mirror's own files in `~/.mirror`; it opens no log file | `mirror_core/nudge.py`, function `on_prompt` |
 | The prompt is labelled and dropped; `~/.mirror/nudge.json` holds counts, times, session ids, settings and a 0/1 flag per recent message (question or pushback, or not) only | Test `test_state_holds_no_prompt_text` |
 | Off until you type `/mirror:on`; `/mirror:off` stops it | Tests `test_off_by_default_intro_once`, `test_off_stops_everything` |
 | Claude cannot turn nudges on or off, snooze or start a check by itself | Every plugin skill sets `disable-model-invocation: true`; test `test_manifest_hook_and_skills` |
 | The nudge line is shown to you as a `systemMessage`; the hook runs synchronously because an async hook's message goes to Claude instead | Same test checks the hook is not async |
 | A broken hook never blocks your prompt | Test `test_hook_never_raises`; 5-second timeout in `hooks.json` |
 | Backs off when ignored, and steps back for a day after 3 ignored nudges | Test `test_ignored_nudges_back_off_then_step_back` |
+| The band handover (0.4.1) reads one more file, `~/.mirror/band.json`, and only when a nudge fires. Mirror never writes it: a band above the prompt does, with session ids and times only. With a heartbeat under 60 seconds old for this session, the nudge still holds the message, but the chat shows a short pointer to the band. A missing, stale, broken or other-session file gives the full nudge. No message text is read from or written to it | `mirror_core/nudge.py`, function `band_present`; test `test_band_present_shortens_the_reason_but_still_blocks` |
 
 The welcome-back line (`mirror_core/welcome.py`, called from the same hook) adds these:
 
